@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useApp, UserRole } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { UploadCloud, FileText, ArrowRight, Briefcase, Laptop, Gavel } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -99,7 +99,7 @@ export const UploadZone = ({ onAnalyze }: Props) => {
       </div>
 
       <div className="mt-8 grid md:grid-cols-2 gap-6">
-        <div>
+        <div className="flex flex-col">
           <Label className={`text-sm font-semibold ${lang === "ur" ? "font-urdu" : ""}`}>{T.upload.role}</Label>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {roles.map((r) => {
@@ -109,7 +109,7 @@ export const UploadZone = ({ onAnalyze }: Props) => {
                   key={r.id}
                   type="button"
                   onClick={() => setRole(r.id)}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 text-xs font-medium transition-smooth ${
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 p-2 text-[11px] font-medium transition-smooth h-[82px] ${
                     active ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/30"
                   }`}
                 >
@@ -120,15 +120,15 @@ export const UploadZone = ({ onAnalyze }: Props) => {
             })}
           </div>
         </div>
-        <div>
+        <div className="flex flex-col">
           <Label htmlFor="industry" className={`text-sm font-semibold ${lang === "ur" ? "font-urdu" : ""}`}>{T.upload.industryLabel}</Label>
-          <Input
+          <Textarea
             id="industry"
             value={industry}
             onChange={(e) => setIndustry(e.target.value.slice(0, 200))}
             placeholder={T.upload.industryPh}
             maxLength={200}
-            className="mt-2"
+            className="mt-2 resize-none h-[82px] py-3"
             dir={lang === "ur" ? "rtl" : "ltr"}
           />
           <div className="mt-1 text-xs text-muted-foreground text-end">{industry.length}/200</div>
