@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useApp, UserRole } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { UploadCloud, FileText, ArrowRight, Briefcase, Laptop, Gavel } from "lucide-react";
+import { UploadCloud, FileText, ArrowRight, Briefcase, Laptop, Gavel, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface Props {
@@ -18,10 +19,15 @@ const roles: { id: UserRole; icon: typeof Briefcase }[] = [
   { id: "lawyer", icon: Gavel },
 ];
 
+const API = "http://localhost:8000";
+
 export const UploadZone = ({ onAnalyze }: Props) => {
-  const { T, role, setRole, industry, setIndustry, contractType, lang } = useApp();
+  const router = useRouter();
+  const { T, role, setRole, industry, setIndustry, contractType, lang, setContractText, resetAnalysis } = useApp();
   const [file, setFile] = useState<File | null>(null);
   const [drag, setDrag] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (f: FileList | null) => {
@@ -32,9 +38,10 @@ export const UploadZone = ({ onAnalyze }: Props) => {
       return;
     }
     setFile(picked);
+    setUploadError(null);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!contractType) {
       toast({ title: lang === "ur" ? "پہلے قسم منتخب کریں" : "Select a contract type first", variant: "destructive" });
       return;
@@ -47,7 +54,33 @@ export const UploadZone = ({ onAnalyze }: Props) => {
       toast({ title: "Description too long", description: "Keep it under 200 characters.", variant: "destructive" });
       return;
     }
-    onAnalyze(file.name);
+
+    setUploading(true);
+    setUploadError(null);
+    resetAnalysis();
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+        throw new Error(err.detail ?? "Upload failed");
+      }
+
+      const data = await res.json();
+      setContractText(data.text);
+      onAnalyze(file.name);
+      router.push("/debate");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      setUploadError(msg);
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -64,16 +97,16 @@ export const UploadZone = ({ onAnalyze }: Props) => {
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => !uploading && inputRef.current?.click()}
         className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-smooth ${
           drag ? "border-accent bg-accent/5" : "border-border bg-background/50 hover:border-primary/40"
-        }`}
+        } ${uploading ? "pointer-events-none opacity-60" : ""}`}
       >
         <input
           ref={inputRef}
           type="file"
           className="hidden"
-          accept=".pdf,.txt,.doc,.docx"
+          accept=".pdf"
           onChange={(e) => handleFiles(e.target.files)}
         />
         {file ? (
@@ -97,6 +130,10 @@ export const UploadZone = ({ onAnalyze }: Props) => {
           </>
         )}
       </div>
+
+      {uploadError && (
+        <p className="mt-3 text-sm text-destructive text-center">{uploadError}</p>
+      )}
 
       <div className="mt-8 grid md:grid-cols-2 gap-6">
         <div className="flex flex-col">
@@ -139,10 +176,20 @@ export const UploadZone = ({ onAnalyze }: Props) => {
         <Button
           size="lg"
           onClick={submit}
+          disabled={uploading}
           className="gradient-gold text-accent-foreground hover:opacity-95 shadow-gold h-12 px-7 font-semibold"
         >
-          {T.upload.analyze}
-          <ArrowRight className="ms-1 h-4 w-4" />
+          {uploading ? (
+            <>
+              <Loader2 className="me-2 h-4 w-4 animate-spin" />
+              {lang === "ur" ? "اپلوڈ ہو رہا ہے…" : "Uploading…"}
+            </>
+          ) : (
+            <>
+              {T.upload.analyze}
+              <ArrowRight className="ms-1 h-4 w-4" />
+            </>
+          )}
         </Button>
       </div>
     </div>

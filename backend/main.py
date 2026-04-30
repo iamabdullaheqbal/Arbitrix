@@ -76,3 +76,12 @@ async def get_verdict(request: VerdictRequest):
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {exc}")
     
     return VerdictResponse(**result)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host='locahost',
+        port=8000,
+        reload=True
+    )
