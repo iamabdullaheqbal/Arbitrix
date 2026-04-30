@@ -2,13 +2,11 @@ import json
 import uuid
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-load_dotenv()
-
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
+from config import settings
 from models.schemas import AnalyzeRequest, UploadResponse, VerdictRequest, VerdictResponse
 from services.pdf_extractor import extract_text_from_pdf
 from services.orchestrator import analyze_contract_stream, synthesize_verdict
