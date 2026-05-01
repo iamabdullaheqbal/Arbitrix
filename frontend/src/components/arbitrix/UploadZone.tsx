@@ -19,7 +19,7 @@ const roles: { id: UserRole; icon: typeof Briefcase }[] = [
   { id: "lawyer", icon: Gavel },
 ];
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export const UploadZone = ({ onAnalyze }: Props) => {
   const router = useRouter();
