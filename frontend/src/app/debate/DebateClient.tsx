@@ -53,8 +53,7 @@ export default function DebateClient() {
     if (hasStarted.current) return;
     hasStarted.current = true;
     startStream();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contractText]);
+  }, [contractText, lang]);
 
   // Auto-scroll each column
   useEffect(() => {
@@ -69,10 +68,14 @@ export default function DebateClient() {
     setConnected(false);
 
     try {
+      // Ensure we use the latest lang from state
+      const currentLang = lang;
+      console.log(`[DebateClient] Initiating stream with language: ${currentLang}`);
+      
       const res = await fetch(`${API}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contract_text: contractText }),
+        body: JSON.stringify({ contract_text: contractText, language: currentLang }),
       });
 
       if (!res.ok) {
@@ -208,12 +211,6 @@ export default function DebateClient() {
               {lang === "ur" ? "لائیو" : "Live"}
             </span>
           )}
-          {synthesizing && (
-            <span className="flex items-center gap-1.5 text-xs text-accent animate-pulse">
-              <Sparkles className="h-3.5 w-3.5" />
-              {lang === "ur" ? "فیصلہ تیار ہو رہا ہے" : "Generating verdict"}
-            </span>
-          )}
         </div>
       </div>
 
@@ -260,7 +257,7 @@ export default function DebateClient() {
               {/* Content */}
               <div
                 ref={(el) => { scrollRefs.current[id] = el; }}
-                className="flex-1 min-h-[300px] max-h-[500px] overflow-y-auto p-4 font-mono text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap"
+                className={`flex-1 min-h-[300px] max-h-[500px] overflow-y-auto p-6 font-mono text-foreground/80 whitespace-pre-wrap ${lang === 'ur' ? 'text-base leading-[2] font-urdu' : 'text-sm leading-relaxed'}`}
               >
                 {hasError ? (
                   <span className="text-destructive">{lang === "ur" ? "مشیر دستیاب نہیں" : "Agent unavailable"}</span>

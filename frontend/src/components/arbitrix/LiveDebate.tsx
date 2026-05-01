@@ -50,8 +50,46 @@ const ADVISORS: Record<AdvisorId, { name: string; nameUr: string; role: string; 
   },
 };
 
-function buildScript(contractType: string | null, industry: string, tier: "high" | "mod" | "low"): Turn[] {
-  const ind = industry?.trim() || "your business";
+function buildScript(contractType: string | null, industry: string, tier: "high" | "mod" | "low", lang: "en" | "ur"): Turn[] {
+  const ind = industry?.trim() || (lang === "ur" ? "آپ کا کاروبار" : "your business");
+  
+  if (lang === "ur") {
+    return [
+      {
+        speaker: "lawyer",
+        cite: "شق 4.2 — ذمہ داری (Liability)",
+        flag: "risk",
+        tech: `شق 4.2 غیر محدود ضمنی ذمہ داری (consequential liability) عائد کرتی ہے۔ بالواسطہ نقصانات کے لیے کوئی استثنا نہیں ہے، اور تعویض (indemnity) دوسری پارٹی کے حق میں یکطرفہ ہے۔`,
+        plain: `شق 4.2 خطرناک ہے۔ اگر کچھ غلط ہو جاتا ہے تو، دوسری طرف آپ کے تمام پیسوں کے پیچھے آ سکتا ہے — نہ صرف اس معاہدے کی مالیت کے۔`,
+      },
+      {
+        speaker: "businessman",
+        reactsTo: "lawyer",
+        flag: "warn",
+        tech: `اتفاق کرتا ہوں۔ مالیاتی نقطہ نظر سے، ${ind} کے خلاف غیر محدود ذمہ داری (unlimited liability) منافع کا ایک پورا حصہ ختم کر سکتی ہے۔ ہمیں معاہدے کی قیمت تک محدود رکھنا چاہیے۔`,
+        plain: `جی ہاں — ${ind} کے لیے، ایک برا تنازعہ مہینوں کا منافع کھا سکتا ہے۔ ہمیں ایک حد مقرر کرنے کی ضرورت ہے۔`,
+      },
+      {
+        speaker: "regulator",
+        cite: contractType === "property" ? "Registration Act 1908 §17(d)" : "SBP FE Manual Ch. 13",
+        flag: "risk",
+        tech: contractType === "property" 
+          ? `کرایہ کی مدت رجسٹریشن (registration) کے بغیر 11 ماہ سے زیادہ ہے۔ یہ رجسٹریشن ایکٹ 1908 کی شق 17(d) کے مطابق نہیں ہے۔`
+          : `${ind} کے لیے غیر ملکی کرنسی میں ادائیگی کے حوالہ جات SBP کی منظوری کے بغیر ہیں۔ یہ FE مینول کی خلاف ورزی ہو سکتی ہے۔`,
+        plain: contractType === "property"
+          ? `نیز — یہ لیز رجسٹریشن کے بغیر بہت لمبی ہے۔ اگر یہ کبھی عدالت میں جاتی ہے تو معاہدہ برقرار نہیں رہے گا۔`
+          : `نیز — SBP کی اجازت کے بغیر غیر ملکی کرنسی میں ادائیگی کرنا آپ کو جرمانے کا شکار کر سکتا ہے۔`,
+      },
+      {
+        speaker: "lawyer",
+        cite: "حتمی فیصلہ (Verdict)",
+        flag: tier === "high" ? "risk" : tier === "mod" ? "warn" : "ok",
+        tech: `حتمی پوزیشن: مذاکرات (negotiation) کو اس شق پر مرکوز کریں۔ ان تبدیلیوں کے ساتھ، قانونی خطرہ نمایاں طور پر کم ہو جاتا ہے۔`,
+        plain: `نیچے کی لکیر: ان چیزوں کو درست کریں اور زیادہ تر خطرہ ختم ہو جائے گا۔`,
+      },
+    ];
+  }
+
   const ctxLine =
     contractType === "property"
       ? "the lease term and registration status"
@@ -93,26 +131,6 @@ function buildScript(contractType: string | null, industry: string, tier: "high"
     },
     {
       speaker: "lawyer",
-      reactsTo: "regulator",
-      flag: "warn",
-      tech: `Concur. We should add a compliance representation and a survival clause so the obligation outlives termination.`,
-      plain: `Right. We add a line that makes the other side legally promise they're following the rules — and that promise stays alive even after the deal ends.`,
-    },
-    {
-      speaker: "businessman",
-      flag: "ok",
-      tech: `Commercially, push for a 30-day cure period and a mutual termination right. That preserves the relationship while protecting downside.`,
-      plain: `Business-wise — give both sides 30 days to fix mistakes before walking away. Keeps the deal alive but protects you.`,
-    },
-    {
-      speaker: "regulator",
-      reactsTo: "businessman",
-      flag: "ok",
-      tech: `Acceptable, provided the cure period does not extend statutory notice obligations under ${contractType === "employment" ? "the Industrial & Commercial Employment Ordinance 1968" : "applicable Pakistani law"}.`,
-      plain: `Fine — as long as the fix-it window doesn't override the legal notice periods Pakistan already requires.`,
-    },
-    {
-      speaker: "lawyer",
       flag: tier === "high" ? "risk" : tier === "mod" ? "warn" : "ok",
       cite: "Verdict",
       tech: `Net position: focus negotiation on ${ctxLine}. With those three changes, residual legal risk drops materially.`,
@@ -128,8 +146,47 @@ const flagMeta = {
 } as const;
 
 export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props) => {
-  const { lang } = useApp();
-  const script = useMemo(() => buildScript(contractType, industry, tier), [contractType, industry, tier]);
+  const { lang, agentOutputs } = useApp();
+  
+  const script = useMemo(() => {
+    // If we have real data from the agents, use it. 
+    // Otherwise, fall back to the demo script.
+    const hasRealData = agentOutputs.lawyer || agentOutputs.businessman || agentOutputs.regulator;
+    
+    // Heuristic: if we have data and it's English, but user wants Urdu, show the Urdu demo script instead
+    const isEnglishData = agentOutputs.lawyer && /^[A-Za-z0-9]/.test(agentOutputs.lawyer.trim().charAt(0));
+
+    if (hasRealData && (lang === "en" || !isEnglishData)) {
+      const realScript: Turn[] = [];
+      if (agentOutputs.lawyer) {
+        realScript.push({
+          speaker: "lawyer",
+          tech: agentOutputs.lawyer,
+          plain: agentOutputs.lawyer,
+          flag: "warn"
+        });
+      }
+      if (agentOutputs.businessman) {
+        realScript.push({
+          speaker: "businessman",
+          tech: agentOutputs.businessman,
+          plain: agentOutputs.businessman,
+          flag: "ok"
+        });
+      }
+      if (agentOutputs.regulator) {
+        realScript.push({
+          speaker: "regulator",
+          tech: agentOutputs.regulator,
+          plain: agentOutputs.regulator,
+          flag: "risk"
+        });
+      }
+      return realScript;
+    }
+    
+    return buildScript(contractType, industry, tier, lang);
+  }, [contractType, industry, tier, agentOutputs, lang]);
 
   const [turnIdx, setTurnIdx] = useState(0);     // current turn being typed
   const [typed, setTyped] = useState("");        // streamed text of current turn
@@ -224,25 +281,32 @@ export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props)
       </div>
 
       {/* Advisor presence row */}
-      <div className="grid grid-cols-3 gap-2 px-5 py-3 border-b border-border bg-muted/30">
+      <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-8 px-5 py-10 border-b border-border bg-muted/20">
         {(Object.keys(ADVISORS) as AdvisorId[]).map((id) => {
           const a = ADVISORS[id];
           const isThinking = thinking === id;
           const isSpeaking = activeTurn?.speaker === id && !thinking;
+          const isDone = visibleTurns.some((t) => t.speaker === id) || done;
+
           return (
-            <div key={id} className="flex items-center gap-2.5 min-w-0">
-              <div className={`relative grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br ${a.color} text-white shadow-soft flex-shrink-0 ${isSpeaking ? `ring-4 ${a.ring} animate-glow-pulse` : ""}`}>
-                <a.icon className="h-4 w-4" />
+            <div key={id} className={`flex items-center min-w-[160px] ${lang === 'ur' ? 'gap-5' : 'gap-4'}`}>
+              <div className={`relative grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br ${a.color} text-white shadow-soft flex-shrink-0 ${isSpeaking ? `ring-4 ${a.ring} animate-glow-pulse` : ""}`}>
+                <a.icon className="h-7 w-7" />
                 {isThinking && (
-                  <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-accent border-2 border-card animate-pulse" />
+                  <span className={`absolute -bottom-1 ${lang === 'ur' ? '-left-1' : '-right-1'} h-4 w-4 rounded-full bg-accent border-2 border-card animate-pulse`} />
+                )}
+                {isDone && (
+                  <div className="absolute -right-1 -top-1 h-6 w-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-sm">
+                    <div className="h-2.5 w-2.5 rounded-full bg-white" />
+                  </div>
                 )}
               </div>
-              <div className="min-w-0">
-                <div className={`text-xs font-semibold truncate ${lang === "ur" ? "font-urdu" : ""}`}>
+              <div className="flex flex-col min-w-0">
+                <div className={`text-[16px] font-bold truncate text-foreground/90 ${lang === "ur" ? "font-urdu leading-[1.8] py-0.5" : ""}`}>
                   {lang === "ur" ? a.nameUr : a.name}
                 </div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {isThinking ? "thinking…" : isSpeaking ? "speaking" : done ? "done" : "listening"}
+                <div className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${isSpeaking ? "text-primary animate-pulse" : isThinking ? "text-amber-600 animate-pulse" : isDone ? "text-emerald-600" : "text-muted-foreground/60"}`}>
+                  {isThinking ? (lang === 'ur' ? 'سوچ رہا ہے…' : 'thinking…') : isSpeaking ? (lang === 'ur' ? 'بول رہا ہے' : 'speaking') : isDone ? (lang === 'ur' ? 'مکمل' : 'done') : (lang === 'ur' ? 'سن رہا ہے' : 'listening')}
                 </div>
               </div>
             </div>
@@ -302,9 +366,9 @@ function DebateBubble({ turn, text, typing, lang }: { turn: Turn; text: string; 
         </div>
 
         <div
-          className={`relative rounded-2xl border px-4 py-3 shadow-card text-sm leading-relaxed bg-card ${
+          className={`relative rounded-2xl border px-4 py-3 shadow-card text-sm bg-card ${
             isRight ? "border-amber-500/30 rounded-tr-sm" : turn.speaker === "lawyer" ? "border-primary/25 rounded-tl-sm" : "border-emerald-500/30 rounded-tl-sm"
-          }`}
+          } ${lang === 'ur' ? 'leading-loose font-urdu' : 'leading-relaxed'}`}
         >
           {turn.cite && (
             <div className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider border rounded-full px-2 py-0.5 mb-2 ${a.chip}`}>
