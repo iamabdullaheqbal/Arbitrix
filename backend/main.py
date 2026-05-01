@@ -45,7 +45,7 @@ async def upload_contract(file: UploadFile = File(...)):
     if not text:
         raise HTTPException(status_code=422, detail="No text could be extracted from the PDF.")
     
-    return UploadResponse(contract_id=str(uuid.uuid4()), text=text)
+    return UploadResponse(contract_id=str(uuid.uuid4()), contract_text=text)
 
 
 @app.post("/analyze")
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         app,
-        host='locahost',
+        host='localhost',
         port=8000,
         reload=True
     )

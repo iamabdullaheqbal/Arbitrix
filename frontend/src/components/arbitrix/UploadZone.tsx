@@ -71,7 +71,7 @@ export const UploadZone = ({ onAnalyze }: Props) => {
       }
 
       const data = await res.json();
-      setContractText(data.text);
+      setContractText(data.contract_text);
       onAnalyze(file.name);
       router.push("/debate");
     } catch (err: unknown) {

@@ -4,7 +4,7 @@ from typing import List, Literal
 
 class UploadResponse(BaseModel):
     contract_id: str
-    text: str
+    contract_text: str
 
 
 class AnalyzeRequest(BaseModel):
