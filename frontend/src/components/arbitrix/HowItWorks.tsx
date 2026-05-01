@@ -34,7 +34,7 @@ export const HowItWorks = () => {
               <span aria-hidden className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${s.tint} opacity-25 group-hover:opacity-90 transition-opacity duration-500`} />
               <div className="relative h-full rounded-[calc(1.5rem-1px)] bg-card p-7 overflow-hidden shimmer-overlay">
                 {/* Big translucent step number */}
-                <span className={`pointer-events-none absolute -top-4 -right-2 text-[7rem] leading-none font-extrabold bg-gradient-to-br ${s.tint} bg-clip-text text-transparent opacity-15 select-none transition-transform duration-700 group-hover:scale-110`}>
+                <span className={`pointer-events-none absolute top-0 ${lang === 'ur' ? 'left-2' : 'right-2'} text-[5rem] leading-none font-extrabold bg-gradient-to-br ${s.tint} bg-clip-text text-transparent opacity-15 select-none transition-transform duration-700 group-hover:scale-105`}>
                   {s.n}
                 </span>
 
