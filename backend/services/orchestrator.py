@@ -23,38 +23,30 @@ def _make_client() -> genai.Client:
 # RAG helpers
 # ---------------------------------------------------------------------------
 
-def _format_chunks(chunks: list[dict]) -> str:
-    if not chunks:
-        return "(No relevant precedents found.)"
-    return "\n\n".join(
-        f"Source: {c['source_file']}\n{c['content']}" for c in chunks
-    )
-
-
 async def _fetch_rag_context(contract_text: str) -> tuple[str, str, str]:
     """
     Fire three parallel retrieval queries and return formatted context strings.
-    Returns empty-context strings gracefully if RAG is unavailable.
+    Returns empty strings gracefully if RAG is unavailable.
     """
     try:
-        from rag.retriever import retrieve_relevant_chunks
+        from rag.retriever import retrieve, format_chunks
 
-        first_500 = contract_text[:500]
+        snippet = contract_text[:300]
 
-        lawyer_q = f"legal risk clauses Pakistani contract law {first_500}"
-        biz_q = f"commercial terms payment liability Pakistani business contract {first_500}"
-        reg_q = f"SECP SBP regulatory compliance Pakistani law {first_500}"
+        lawyer_q = f"legal risk unenforceable clause Pakistani contract law {snippet}"
+        biz_q = f"commercial payment liability unfair terms Pakistani business {snippet}"
+        reg_q = f"SECP SBP regulatory compliance Pakistani law violation {snippet}"
 
         lawyer_chunks, biz_chunks, reg_chunks = await asyncio.gather(
-            retrieve_relevant_chunks(lawyer_q, top_k=5),
-            retrieve_relevant_chunks(biz_q, top_k=5),
-            retrieve_relevant_chunks(reg_q, top_k=5),
+            retrieve(lawyer_q, top_k=5, doc_type="core_law"),
+            retrieve(biz_q, top_k=5, doc_type="sample_contracts"),
+            retrieve(reg_q, top_k=5, doc_type="secp"),
         )
 
         return (
-            _format_chunks(lawyer_chunks),
-            _format_chunks(biz_chunks),
-            _format_chunks(reg_chunks),
+            format_chunks(lawyer_chunks),
+            format_chunks(biz_chunks),
+            format_chunks(reg_chunks),
         )
     except Exception as exc:
         logger.warning("RAG context fetch failed — running without RAG: %s", exc)

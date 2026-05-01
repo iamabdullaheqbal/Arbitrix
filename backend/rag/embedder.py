@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,20 @@ class Embedder:
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self._loaded = True
 
+    @staticmethod
+    def _preprocess(text: str) -> str:
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:512]
+
     def embed(self, text: str) -> list[float]:
         self._load()
-        return self.model.encode(text).tolist()
+        return self.model.encode(self._preprocess(text)).tolist()
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         self._load()
-        return self.model.encode(texts).tolist()
+        processed = [self._preprocess(t) for t in texts]
+        return self.model.encode(processed).tolist()
+
+
+# Module-level singleton
+singleton = Embedder()

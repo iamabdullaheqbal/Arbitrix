@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ def _split_sentences(text: str) -> list[str]:
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
 
 
-def chunk_text(text: str, min_len: int = 200, max_len: int = 500, overlap: int = 50) -> list[str]:
+def chunk_text(text: str, min_len: int = 50, max_len: int = 500, overlap: int = 50) -> list[str]:
     """Split text into chunks of min_len–max_len chars with *overlap* carry-over."""
     paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
     chunks: list[str] = []
@@ -107,36 +106,35 @@ async def _batch_insert(conn, rows: list[dict]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Public ingestion entry point
+# Public API
 # ---------------------------------------------------------------------------
 
-async def ingest_file(path: Path, doc_type: str | None = None) -> int:
+async def ingest_file(filepath: str | Path, doc_type: str = "general") -> int:
     """
     Ingest a single PDF or DOCX file into Neon.
     Returns the number of chunks inserted (0 if already ingested or error).
     """
     from rag.db import get_pool
-    from rag.embedder import Embedder
+    from rag.embedder import singleton as embedder
 
+    path = Path(filepath)
     pool = get_pool()
     if pool is None:
         logger.warning("No DB pool — skipping ingestion of %s", path.name)
         return 0
 
-    embedder = Embedder()
-
     async with pool.acquire() as conn:
         if await _already_ingested(conn, path.name):
-            logger.info("Already ingested: %s — skipping.", path.name)
+            print(f"Skipping already ingested: {path.name}", flush=True)
             return 0
 
         try:
-            text = read_document(path)
+            raw_text = read_document(path)
         except Exception as exc:
             logger.error("Failed to read %s: %s", path.name, exc)
             return 0
 
-        chunks = chunk_text(text)
+        chunks = chunk_text(raw_text)
         if not chunks:
             logger.warning("No chunks produced from %s", path.name)
             return 0
@@ -146,7 +144,7 @@ async def ingest_file(path: Path, doc_type: str | None = None) -> int:
         inserted = 0
 
         for batch_start in range(0, total, BATCH):
-            batch_texts = chunks[batch_start : batch_start + BATCH]
+            batch_texts = chunks[batch_start: batch_start + BATCH]
             try:
                 embeddings = embedder.embed_batch(batch_texts)
             except Exception as exc:
@@ -157,21 +155,50 @@ async def ingest_file(path: Path, doc_type: str | None = None) -> int:
                 {
                     "source_file": path.name,
                     "chunk_index": batch_start + i,
-                    "content": text,
+                    "content": chunk,          # ← fixed: was `text` (outer var)
                     "embedding": emb,
                     "doc_type": doc_type,
                 }
-                for i, (text, emb) in enumerate(zip(batch_texts, embeddings))
+                for i, (chunk, emb) in enumerate(zip(batch_texts, embeddings))
             ]
 
             try:
                 await _batch_insert(conn, rows)
                 inserted += len(rows)
                 print(
-                    f"  Ingested chunk {inserted}/{total} from {path.name}",
+                    f"  Ingesting chunk {inserted}/{total} from {path.name}",
                     flush=True,
                 )
             except Exception as exc:
                 logger.error("DB insert failed for batch in %s: %s", path.name, exc)
 
         return inserted
+
+
+async def ingest_folder(folder_path: str | Path) -> tuple[int, int]:
+    """
+    Walk *folder_path*, infer doc_type from immediate subfolder name,
+    and ingest every .pdf / .docx file found.
+    Returns (files_ingested, chunks_total).
+    """
+    root = Path(folder_path).resolve()
+    files = [p for p in root.rglob("*") if p.suffix.lower() in {".pdf", ".docx"}]
+
+    total_files = 0
+    total_chunks = 0
+
+    for file_path in files:
+        # Infer doc_type from the immediate subfolder under root
+        try:
+            relative = file_path.relative_to(root)
+            doc_type = relative.parts[0] if len(relative.parts) > 1 else "general"
+        except ValueError:
+            doc_type = "general"
+
+        print(f"\nProcessing: {file_path.name} (doc_type={doc_type})", flush=True)
+        n = await ingest_file(file_path, doc_type=doc_type)
+        if n > 0:
+            total_files += 1
+            total_chunks += n
+
+    return total_files, total_chunks
