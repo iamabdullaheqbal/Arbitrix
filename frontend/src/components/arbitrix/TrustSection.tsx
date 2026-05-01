@@ -28,25 +28,25 @@ export const TrustSection = () => {
     {
       icon: Lock,
       title: lang === "ur" ? "مکمل رازداری" : "Fully private",
-      desc: lang === "ur" ? "آپ کی فائل کبھی محفوظ نہیں کی جاتی۔" : "Your file is never stored on our servers.",
+      desc: lang === "ur" ? "آپ کی فائلیں اور ڈیٹا کبھی بھی ہمارے سرورز پر محفوظ نہیں کیا جاتا۔" : "Your file is never stored on our servers.",
       tint: "from-emerald-400 to-teal-600",
     },
     {
       icon: Scale,
-      title: lang === "ur" ? "پاکستانی قانون" : "Pakistan-aware",
-      desc: lang === "ur" ? "مقامی قوانین اور ریگولیٹرز کے مطابق۔" : "Trained on local statutes, SBP, SECP & FBR rules.",
+      title: lang === "ur" ? "پاکستانی قوانین سے ہم آہنگ" : "Pakistan-aware",
+      desc: lang === "ur" ? "مقامی قوانین، اسٹیٹ بینک اور ایس ای سی پی کے ضوابط کے عین مطابق۔" : "Trained on local statutes, SBP, SECP & FBR rules.",
       tint: "from-sky-400 to-indigo-600",
     },
     {
       icon: Globe2,
-      title: lang === "ur" ? "دو زبانوں میں" : "Bilingual",
-      desc: lang === "ur" ? "انگریزی اور آسان اردو میں نتائج۔" : "Verdicts in clear English and natural Urdu.",
+      title: lang === "ur" ? "دو لسانی نتائج" : "Bilingual",
+      desc: lang === "ur" ? "نتائج کا انگریزی اور سہل اردو زبان میں تبادلہ تاکہ آپ بہتر فیصلہ کر سکیں۔" : "Verdicts in clear English and natural Urdu.",
       tint: "from-amber-400 to-orange-500",
     },
     {
       icon: Eye,
-      title: lang === "ur" ? "شفاف وجوہات" : "Transparent reasoning",
-      desc: lang === "ur" ? "ہر فیصلے کی وضاحت اور حوالے۔" : "Every flag cites the clause and the law.",
+      title: lang === "ur" ? "شفاف اور منطقی وجوہات" : "Transparent reasoning",
+      desc: lang === "ur" ? "ہر فیصلے کی وضاحت، متعلقہ شق اور قانونی حوالے کے ساتھ۔" : "Every flag cites the clause and the law.",
       tint: "from-fuchsia-400 to-violet-600",
     },
   ];
@@ -60,12 +60,12 @@ export const TrustSection = () => {
             <Sparkles className="h-3 w-3 text-accent" />
             {lang === "ur" ? "اعتماد" : "Why trust Arbitrix"}
           </span>
-          <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu" : ""}`}>
-            {lang === "ur" ? "بنایا گیا — قانونی ذہن، انجینئرڈ شفافیت" : "Built like a lawyer thinks. Engineered for clarity."}
+          <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu leading-[1.4]" : "leading-tight"}`}>
+            {lang === "ur" ? "قانونی مہارت اور جدید ٹیکنالوجی کا شاہکار" : "Built like a lawyer thinks. Engineered for clarity."}
           </h2>
-          <p className={`mt-3 text-muted-foreground ${lang === "ur" ? "font-urdu" : ""}`}>
+          <p className={`mt-3 text-muted-foreground ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>
             {lang === "ur"
-              ? "آربیٹرکس آپ کے کاروبار کو پاکستانی سیاق میں سمجھتا ہے۔"
+              ? "آربیٹرکس آپ کے کاروبار کے تقاضوں کو پاکستانی قوانین کی روشنی میں جانچتا ہے۔"
               : "Designed around Pakistani business reality — not a US legal template."}
           </p>
         </div>
@@ -111,7 +111,7 @@ export const TrustSection = () => {
                     <f.icon className="h-5 w-5" strokeWidth={2.25} />
                   </div>
                 </div>
-                <h3 className={`mt-5 text-base font-semibold ${lang === "ur" ? "font-urdu" : ""}`}>{f.title}</h3>
+                <h3 className={`mt-5 text-base font-semibold ${lang === "ur" ? "font-urdu leading-[1.5]" : ""}`}>{f.title}</h3>
                 <p className={`mt-1.5 text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}>{f.desc}</p>
                 {/* Progress bar */}
                 <div className="mt-4 h-1 w-full rounded-full bg-muted overflow-hidden">

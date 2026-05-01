@@ -97,8 +97,8 @@ export default function VerdictClient() {
             </div>
             <div>
               <div className="text-sm uppercase tracking-wider opacity-80 font-medium">{T.verdict.heading}</div>
-              <div className={`text-3xl md:text-5xl font-bold mt-1 ${lang === "ur" ? "font-urdu" : ""}`}>{tierLabel}</div>
-              <div className={`mt-2 text-base md:text-lg opacity-95 ${lang === "ur" ? "font-urdu" : ""}`}>{tierMsg}</div>
+              <div className={`text-3xl md:text-5xl font-bold mt-1 ${lang === "ur" ? "font-urdu leading-[1.3]" : ""}`}>{tierLabel}</div>
+              <div className={`mt-2 text-base md:text-lg opacity-95 ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>{tierMsg}</div>
             </div>
           </div>
           {/* Gauge */}
@@ -134,7 +134,7 @@ export default function VerdictClient() {
             {which === "english" ? (
               <p className="text-base leading-relaxed">{verdict.summary_english}</p>
             ) : (
-              <p className="text-lg leading-loose font-urdu" dir="rtl">{verdict.summary_urdu}</p>
+              <p className="text-lg leading-loose font-urdu" dir="rtl" style={{ lineHeight: lang === 'ur' ? '2.2' : 'inherit' }}>{verdict.summary_urdu}</p>
             )}
           </div>
         ))}
@@ -143,7 +143,7 @@ export default function VerdictClient() {
       {/* Red flags */}
       {verdict.red_flags.length > 0 && (
         <div className="space-y-3">
-          <h2 className={`text-xl font-bold ${lang === "ur" ? "font-urdu" : ""}`}>
+          <h2 className={`text-xl font-bold ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>
             {lang === "ur" ? "خطرناک شقیں" : "Red Flags"}
           </h2>
           <div className="space-y-3">
@@ -170,7 +170,7 @@ export default function VerdictClient() {
       {/* Recommendations */}
       {verdict.recommendations.length > 0 && (
         <div className="space-y-3">
-          <h2 className={`text-xl font-bold ${lang === "ur" ? "font-urdu" : ""}`}>
+          <h2 className={`text-xl font-bold ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>
             {lang === "ur" ? "تجاویز" : "Recommendations"}
           </h2>
           <ol className="space-y-2">

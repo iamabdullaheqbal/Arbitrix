@@ -11,7 +11,7 @@ export const Hero = () => {
   const { T, lang } = useApp();
   const [ctaState, setCtaState] = useState<"idle" | "loading" | "done">("idle");
   const ctaSteps = lang === "ur"
-    ? ["مشیر تیار کر رہا ہے", "قانونی ماڈیول لوڈ", "تیار!"]
+    ? ["مشیروں سے رابطہ", "قانونی ماڈیولز لوڈ ہو رہے ہیں", "تیار!"]
     : ["Waking advisors", "Loading legal modules", "Ready!"];
   const [ctaStep, setCtaStep] = useState(0);
 
@@ -68,7 +68,7 @@ export const Hero = () => {
             {T.hero.eyebrow}
           </div>
 
-          <h1 className={`mt-6 text-4xl md:text-6xl font-bold tracking-tight leading-[1.05] animate-fade-in-up ${lang === "ur" ? "font-urdu" : ""}`}>
+          <h1 className={`mt-6 text-4xl md:text-6xl font-bold tracking-tight animate-fade-in-up ${lang === "ur" ? "font-urdu leading-[1.35]" : "leading-[1.05]"}`}>
             {T.hero.title.split(" — ")[0]}
             {T.hero.title.includes(" — ") && (
               <>
@@ -78,7 +78,7 @@ export const Hero = () => {
             )}
           </h1>
 
-          <p className={`mt-6 text-lg md:text-xl text-primary-foreground/80 max-w-2xl lg:mx-0 mx-auto animate-fade-in-up ${lang === "ur" ? "font-urdu" : ""}`}>
+          <p className={`mt-6 text-lg md:text-xl text-primary-foreground/80 max-w-2xl lg:mx-0 mx-auto animate-fade-in-up ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>
             {T.hero.subtitle}
           </p>
 

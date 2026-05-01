@@ -16,8 +16,8 @@ export const HowItWorks = () => {
         <span className="inline-block rounded-full bg-primary/5 border border-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
           {lang === "ur" ? "طریقہ کار" : "Process"}
         </span>
-        <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu" : ""}`}>{T.how.title}</h2>
-        <p className={`mt-3 text-muted-foreground ${lang === "ur" ? "font-urdu" : ""}`}>{T.how.subtitle}</p>
+        <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu leading-[1.4]" : ""}`}>{T.how.title}</h2>
+        <p className={`mt-3 text-muted-foreground ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>{T.how.subtitle}</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 md:gap-8 relative stagger">
@@ -46,7 +46,7 @@ export const HowItWorks = () => {
                   </div>
                 </div>
 
-                <h3 className={`mt-6 text-lg font-semibold ${lang === "ur" ? "font-urdu" : ""}`}>{s.title}</h3>
+                <h3 className={`mt-6 text-lg font-semibold ${lang === "ur" ? "font-urdu leading-[1.4]" : ""}`}>{s.title}</h3>
                 <p className={`mt-2 text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}>{s.desc}</p>
 
                 <span className={`mt-5 block h-[3px] w-10 rounded-full bg-gradient-to-r ${s.tint} transition-all duration-500 group-hover:w-24`} />
