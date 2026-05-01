@@ -14,7 +14,10 @@ from services.orchestrator import analyze_contract_stream, synthesize_verdict
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from rag.db import init_pool, close_pool
+    await init_pool()
     yield
+    await close_pool()
 
 
 app = FastAPI(title="Arbitrix API", version="1.0.0", lifespan=lifespan)

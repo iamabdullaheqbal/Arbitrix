@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-1.5-pro"
     cors_origin: str = "http://localhost:3000"
+    neon_database_url: str = ""
 
     class Config:
         env_file = ".env"

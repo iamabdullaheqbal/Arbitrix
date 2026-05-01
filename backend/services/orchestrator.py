@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import AsyncGenerator
 
 from google import genai
@@ -11,10 +12,88 @@ from agents.regulator import REGULATOR_SYSTEM_PROMPT
 from agents.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from config import settings
 
+logger = logging.getLogger(__name__)
+
 
 def _make_client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
+
+# ---------------------------------------------------------------------------
+# RAG helpers
+# ---------------------------------------------------------------------------
+
+def _format_chunks(chunks: list[dict]) -> str:
+    if not chunks:
+        return "(No relevant precedents found.)"
+    return "\n\n".join(
+        f"Source: {c['source_file']}\n{c['content']}" for c in chunks
+    )
+
+
+async def _fetch_rag_context(contract_text: str) -> tuple[str, str, str]:
+    """
+    Fire three parallel retrieval queries and return formatted context strings.
+    Returns empty-context strings gracefully if RAG is unavailable.
+    """
+    try:
+        from rag.retriever import retrieve_relevant_chunks
+
+        first_500 = contract_text[:500]
+
+        lawyer_q = f"legal risk clauses Pakistani contract law {first_500}"
+        biz_q = f"commercial terms payment liability Pakistani business contract {first_500}"
+        reg_q = f"SECP SBP regulatory compliance Pakistani law {first_500}"
+
+        lawyer_chunks, biz_chunks, reg_chunks = await asyncio.gather(
+            retrieve_relevant_chunks(lawyer_q, top_k=5),
+            retrieve_relevant_chunks(biz_q, top_k=5),
+            retrieve_relevant_chunks(reg_q, top_k=5),
+        )
+
+        return (
+            _format_chunks(lawyer_chunks),
+            _format_chunks(biz_chunks),
+            _format_chunks(reg_chunks),
+        )
+    except Exception as exc:
+        logger.warning("RAG context fetch failed — running without RAG: %s", exc)
+        return ("", "", "")
+
+
+def _build_lawyer_prompt(rag_context: str) -> str:
+    if not rag_context:
+        return LAWYER_SYSTEM_PROMPT
+    return (
+        LAWYER_SYSTEM_PROMPT.rstrip()
+        + f"\n\nRELEVANT LEGAL PRECEDENTS FROM YOUR KNOWLEDGE BASE:\n{rag_context}\n\n"
+        "Using the above precedents as reference, analyze the contract below."
+    )
+
+
+def _build_businessman_prompt(rag_context: str) -> str:
+    if not rag_context:
+        return BUSINESSMAN_SYSTEM_PROMPT
+    return (
+        BUSINESSMAN_SYSTEM_PROMPT.rstrip()
+        + f"\n\nRELEVANT COMMERCIAL PRECEDENTS FROM YOUR KNOWLEDGE BASE:\n{rag_context}\n\n"
+        "Using the above precedents as reference, analyze the contract below."
+    )
+
+
+def _build_regulator_prompt(rag_context: str) -> str:
+    if not rag_context:
+        return REGULATOR_SYSTEM_PROMPT
+    return (
+        REGULATOR_SYSTEM_PROMPT.rstrip()
+        + f"\n\nRELEVANT REGULATORY PRECEDENTS FROM YOUR KNOWLEDGE BASE:\n{rag_context}\n\n"
+        "Using the above precedents as reference, analyze the contract below."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent streaming
+# ---------------------------------------------------------------------------
 
 async def _stream_agent(
     agent_name: str,
@@ -52,21 +131,21 @@ async def _stream_agent(
 
 async def analyze_contract_stream(contract_text: str) -> AsyncGenerator[dict, None]:
     """
-    Fire all three agents simultaneously, stream their tokens, then
-    run synthesis and emit a final SSE event with the full verdict.
+    1. Fetch RAG context in parallel for all three agents.
+    2. Fire all three agents simultaneously with enriched prompts.
+    3. Stream their tokens, then run synthesis and emit final verdict.
     """
     queue: asyncio.Queue = asyncio.Queue()
 
+    # Parallel RAG retrieval — never blocks agents if it fails
+    lawyer_ctx, biz_ctx, reg_ctx = await _fetch_rag_context(contract_text)
+
     agents = [
-        ("lawyer", LAWYER_SYSTEM_PROMPT),
-        ("businessman", BUSINESSMAN_SYSTEM_PROMPT),
-        ("regulator", REGULATOR_SYSTEM_PROMPT),
+        ("lawyer", _build_lawyer_prompt(lawyer_ctx)),
+        ("businessman", _build_businessman_prompt(biz_ctx)),
+        ("regulator", _build_regulator_prompt(reg_ctx)),
     ]
 
-    # Collect full text per agent for synthesis
-    agent_results: dict[str, str] = {name: "" for name, _ in agents}
-
-    # Track chunks per agent to reconstruct full text
     agent_buffers: dict[str, str] = {name: "" for name, _ in agents}
 
     tasks = [
@@ -85,18 +164,16 @@ async def analyze_contract_stream(contract_text: str) -> AsyncGenerator[dict, No
         yield event
 
         if event["done"]:
-            agent_results[agent_name] = agent_buffers[agent_name]
             done_count += 1
 
-    # Gather tasks (they're already done at this point)
     await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Now run synthesis
+    # Synthesis
     try:
         verdict = await synthesize_verdict(
-            lawyer=agent_results["lawyer"],
-            businessman=agent_results["businessman"],
-            regulator=agent_results["regulator"],
+            lawyer=agent_buffers["lawyer"],
+            businessman=agent_buffers["businessman"],
+            regulator=agent_buffers["regulator"],
         )
         yield {"agent": "synthesis", "chunk": "", "done": True, "verdict": verdict}
     except Exception as exc:
@@ -129,7 +206,6 @@ Synthesize the above into a final verdict."""
     )
 
     raw_text = response.text.strip()
-    # Strip markdown code fences if present
     if raw_text.startswith("```"):
         lines = raw_text.split("\n")
         raw_text = "\n".join(lines[1:-1]) if len(lines) > 2 else raw_text
