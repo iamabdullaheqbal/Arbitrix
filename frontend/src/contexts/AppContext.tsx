@@ -5,7 +5,7 @@ import { Lang, t } from "@/lib/i18n";
 
 export type ContractType =
   | "vendor" | "employment" | "partnership" | "property" | "freelance" | "other";
-export type UserRole = "owner" | "freelancer" | "lawyer";
+export type UserRole = "owner" | "freelancer";
 
 export interface RedFlag {
   clause: string;

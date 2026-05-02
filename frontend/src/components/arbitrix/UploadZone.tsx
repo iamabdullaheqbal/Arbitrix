@@ -6,7 +6,7 @@ import { useApp, UserRole } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { UploadCloud, FileText, ArrowRight, Briefcase, Laptop, Gavel, Loader2 } from "lucide-react";
+import { UploadCloud, FileText, ArrowRight, Briefcase, Laptop, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface Props {
@@ -16,7 +16,6 @@ interface Props {
 const roles: { id: UserRole; icon: typeof Briefcase }[] = [
   { id: "owner", icon: Briefcase },
   { id: "freelancer", icon: Laptop },
-  { id: "lawyer", icon: Gavel },
 ];
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -138,7 +137,7 @@ export const UploadZone = ({ onAnalyze }: Props) => {
       <div className="mt-8 grid md:grid-cols-2 gap-6">
         <div className="flex flex-col">
           <Label className={`text-sm font-semibold ${lang === "ur" ? "font-urdu" : ""}`}>{T.upload.role}</Label>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             {roles.map((r) => {
               const active = role === r.id;
               return (
