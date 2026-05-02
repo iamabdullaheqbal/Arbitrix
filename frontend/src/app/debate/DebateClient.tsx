@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
-import { Briefcase, Gavel, Building2, Sparkles, AlertCircle, RefreshCw, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Briefcase, Gavel, Building2, Sparkles, AlertCircle, RefreshCw, AlertTriangle, ShieldCheck, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -28,7 +28,11 @@ interface Finding {
 /** Try to parse agent JSON output into structured findings. Returns null if not parseable. */
 function parseFindings(raw: string): Finding[] | null {
   try {
-    const text = raw.trim().replace(/^```[a-z]*\n?/, "").replace(/```$/, "").trim();
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    let text = raw.trim().replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
+    // Extract the first JSON object if there's surrounding text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) text = jsonMatch[0];
     const obj = JSON.parse(text);
     const findings = obj?.findings;
     if (Array.isArray(findings) && findings.length > 0) return findings as Finding[];
@@ -42,12 +46,51 @@ const SEVERITY_STYLES: Record<string, string> = {
   LOW:    "bg-blue-100 text-blue-700 border-blue-200",
 };
 
+function StreamingPlaceholder({ lang, waiting }: { lang: string; waiting?: boolean }) {
+  return (
+    <div className="space-y-3 animate-pulse">
+      <div className="flex items-center gap-2 mb-4">
+        {waiting ? (
+          <span className="text-muted-foreground italic text-sm">
+            {lang === "ur" ? "انتظار میں…" : "Waiting for response…"}
+          </span>
+        ) : (
+          <>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-70" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {lang === "ur" ? "تجزیہ جاری ہے…" : "Analyzing…"}
+            </span>
+          </>
+        )}
+      </div>
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-xl border border-border bg-muted/40 p-4 space-y-2">
+          <div className="h-3 w-16 rounded-full bg-muted-foreground/20" />
+          <div className="h-3 w-full rounded-full bg-muted-foreground/15" />
+          <div className="h-3 w-4/5 rounded-full bg-muted-foreground/15" />
+          <div className="h-3 w-full rounded-full bg-muted-foreground/10 mt-2" />
+          <div className="h-3 w-3/4 rounded-full bg-muted-foreground/10" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FindingsCard({ findings, lang }: { findings: Finding[]; lang: string }) {
+  const isUr = lang === "ur";
+  const urduStyle: React.CSSProperties = {
+    fontFamily: "'Noto Nastaliq Urdu', serif",
+    lineHeight: "2.2",
+    fontSize: "1rem",
+  };
   return (
     <div className="space-y-3">
       {findings.map((f, i) => (
         <div key={i} className="rounded-xl border border-border bg-background/60 p-4 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className={`flex items-center gap-2 flex-wrap ${isUr ? "flex-row-reverse" : ""}`}>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${SEVERITY_STYLES[f.severity] ?? SEVERITY_STYLES.LOW}`}>
               {f.severity}
             </span>
@@ -55,18 +98,19 @@ function FindingsCard({ findings, lang }: { findings: Finding[]; lang: string })
             {f.severity === "LOW"  && <ShieldCheck   className="h-3.5 w-3.5 text-blue-500" />}
           </div>
           <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">
-            {lang === "ur" ? "متنازعہ شق" : "Clause"}
+            {isUr ? "متنازعہ شق" : "Clause"}
           </p>
-          <blockquote className="text-sm font-medium text-foreground leading-snug border-l-2 border-muted-foreground/30 pl-3 italic">
+          {/* Clause always LTR — it's a direct quote */}
+          <blockquote className="text-sm font-medium text-foreground leading-snug border-l-2 border-muted-foreground/30 pl-3 italic" dir="ltr">
             "{f.clause}"
           </blockquote>
           <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide mt-1">
-            {lang === "ur" ? "خطرہ" : "Risk"}
+            {isUr ? "خطرہ" : "Risk"}
           </p>
           <p
-            className={`text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}
-            dir={lang === "ur" ? "rtl" : undefined}
-            style={lang === "ur" ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2" } : undefined}
+            className={`text-sm text-muted-foreground leading-relaxed ${isUr ? "font-urdu" : ""}`}
+            dir={isUr ? "rtl" : undefined}
+            style={isUr ? urduStyle : undefined}
           >
             {f.risk}
           </p>
@@ -78,7 +122,8 @@ function FindingsCard({ findings, lang }: { findings: Finding[]; lang: string })
 
 export default function DebateClient() {
   const router = useRouter();
-  const { contractText, setAgentOutputs, setAgentDone, setVerdict, setAnalysisError, lang, resetAnalysis, mode } = useApp();
+  const { contractText, setAgentOutputs, setAgentDone, setVerdict, setAnalysisError, lang, setLang, resetAnalysis, mode } = useApp();
+  const isUr = lang === "ur";
 
   const [outputs, setOutputs] = useState<Record<AgentId, string>>({ lawyer: "", businessman: "", regulator: "" });
   const [done, setDone] = useState<Record<AgentId, boolean>>({ lawyer: false, businessman: false, regulator: false });
@@ -199,28 +244,54 @@ export default function DebateClient() {
   const allDone = done.lawyer && done.businessman && done.regulator;
 
   return (
-    <div className="container max-w-7xl py-8 md:py-12 space-y-6">
+    <div className="container max-w-7xl py-8 md:py-12 space-y-6" dir={isUr ? "rtl" : "ltr"}>
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className={`text-2xl md:text-3xl font-bold ${lang === "ur" ? "font-urdu" : ""}`}>
-            {lang === "ur" ? "تین مشیروں کی بحث" : "Three-Advisor Debate"}
+          <h1 className={`text-2xl md:text-3xl font-bold ${isUr ? "font-urdu" : ""}`}
+            style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif" } : undefined}>
+            {isUr ? "تین مشیروں کی بحث" : "Three-Advisor Debate"}
           </h1>
-          <p className={`text-muted-foreground mt-1 text-sm ${lang === "ur" ? "font-urdu" : ""}`}>
-            {synthesizing ? (lang === "ur" ? "فیصلہ تیار ہو رہا ہے…" : "Synthesizing verdict…")
-              : allDone ? (lang === "ur" ? "تجزیہ مکمل" : "Analysis complete")
-              : (lang === "ur" ? "تجزیہ جاری ہے…" : "Analysis in progress…")}
+          <p className={`text-muted-foreground mt-1 text-sm ${isUr ? "font-urdu" : ""}`}>
+            {synthesizing ? (isUr ? "فیصلہ تیار ہو رہا ہے…" : "Synthesizing verdict…")
+              : allDone ? (isUr ? "تجزیہ مکمل" : "Analysis complete")
+              : (isUr ? "تجزیہ جاری ہے…" : "Analysis in progress…")}
           </p>
         </div>
-        {connected && !allDone && (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-70" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
+
+        <div className="flex items-center gap-3">
+          {/* Language toggle */}
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-card p-1 shadow-soft">
+            <Languages className="h-3.5 w-3.5 text-muted-foreground ms-1.5" />
+            <button
+              onClick={() => setLang("en")}
+              className={`h-7 rounded-full px-3 text-xs font-medium transition-all ${
+                !isUr ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              English
+            </button>
+            <button
+              onClick={() => setLang("ur")}
+              className={`h-7 rounded-full px-3 text-xs font-medium transition-all ${
+                isUr ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+              style={{ fontFamily: "'Noto Nastaliq Urdu', serif" }}
+            >
+              اردو
+            </button>
+          </div>
+
+          {connected && !allDone && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-70" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
+              </span>
+              {isUr ? "لائیو" : "Live"}
             </span>
-            {lang === "ur" ? "لائیو" : "Live"}
-          </span>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Stream error */}
@@ -228,12 +299,12 @@ export default function DebateClient() {
         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-5 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-semibold text-destructive">Connection failed</p>
+            <p className="font-semibold text-destructive">{isUr ? "کنکشن ناکام" : "Connection failed"}</p>
             <p className="text-sm text-muted-foreground mt-1">{streamError}</p>
           </div>
           <Button variant="outline" size="sm" onClick={handleRetry} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
-            {lang === "ur" ? "دوبارہ کوشش" : "Retry"}
+            {isUr ? "دوبارہ کوشش" : "Retry"}
           </Button>
         </div>
       )}
@@ -255,13 +326,20 @@ export default function DebateClient() {
                   <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className={`font-semibold text-sm ${lang === "ur" ? "font-urdu" : ""}`}>
-                    {lang === "ur"
+                  <div className={`font-semibold text-sm ${isUr ? "font-urdu" : ""}`}
+                    style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif" } : undefined}>
+                    {isUr
                       ? (mode === "plain" ? agent.labelUrPlain : agent.labelUr)
                       : (mode === "plain" ? agent.labelPlain : agent.label)}
                   </div>
                   <div className="text-[10px] uppercase tracking-wider text-white/70">
-                    {hasError ? "Error" : done[id] ? "Done" : isActive ? "Analyzing…" : "Waiting…"}
+                    {hasError
+                      ? (isUr ? "خطا" : "Error")
+                      : done[id]
+                      ? (isUr ? "مکمل" : "Done")
+                      : isActive
+                      ? (isUr ? "تجزیہ جاری…" : "Analyzing…")
+                      : (isUr ? "انتظار…" : "Waiting…")}
                   </div>
                 </div>
               </div>
@@ -269,21 +347,26 @@ export default function DebateClient() {
               <div
                 ref={(el) => { scrollRefs.current[id] = el; }}
                 className="flex-1 min-h-[300px] max-h-[500px] overflow-y-auto p-4"
+                dir={isUr ? "rtl" : "ltr"}
               >
                 {hasError ? (
-                  <span className="text-destructive text-sm">{lang === "ur" ? "مشیر دستیاب نہیں" : "Agent unavailable"}</span>
+                  <div className="flex items-center gap-2 text-destructive text-sm">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{isUr ? "مشیر دستیاب نہیں" : "Agent unavailable"}</span>
+                  </div>
                 ) : findings ? (
                   <FindingsCard findings={findings} lang={lang} />
-                ) : raw ? (
-                  /* Still streaming — show raw text with cursor */
-                  <div className="font-mono text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
-                    {raw}
-                    {isActive && <span className="inline-block w-1.5 h-3.5 align-middle bg-foreground/60 ml-0.5 animate-pulse" />}
+                ) : isActive ? (
+                  <StreamingPlaceholder lang={lang} />
+                ) : done[id] && !findings ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">
+                      {isUr ? "جواب پارس نہیں ہو سکا" : "Could not parse response"}
+                    </p>
                   </div>
                 ) : (
-                  <span className="text-muted-foreground italic text-sm">
-                    {lang === "ur" ? "انتظار میں…" : "Waiting for response…"}
-                  </span>
+                  <StreamingPlaceholder lang={lang} waiting />
                 )}
               </div>
             </div>
@@ -296,8 +379,9 @@ export default function DebateClient() {
         <div className="rounded-2xl border border-accent/30 bg-accent/5 p-5 text-center space-y-3">
           <div className="flex items-center justify-center gap-2 text-sm font-medium">
             <Sparkles className="h-4 w-4 text-accent animate-pulse" />
-            <span className={lang === "ur" ? "font-urdu" : ""}>
-              {lang === "ur" ? "تینوں مشیروں کی رائے یکجا کی جا رہی ہے…" : "Synthesizing all three advisor opinions…"}
+            <span className={isUr ? "font-urdu" : ""}
+              style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif" } : undefined}>
+              {isUr ? "تینوں مشیروں کی رائے یکجا کی جا رہی ہے…" : "Synthesizing all three advisor opinions…"}
             </span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">

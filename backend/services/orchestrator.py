@@ -38,6 +38,14 @@ async def _fetch_rag_context(contract_text: str) -> tuple[str, str, str]:
             retrieve(f"commercial payment liability unfair terms Pakistani business {snippet}", top_k=5),
             retrieve(f"SECP SBP regulatory compliance Pakistani law {snippet}", top_k=5),
         )
+        # Log RAG results so we can verify chunks are coming from the DB
+        logger.info(
+            "RAG context fetched — lawyer: %d chunks, businessman: %d chunks, regulator: %d chunks",
+            len(lawyer_chunks), len(biz_chunks), len(reg_chunks),
+        )
+        if lawyer_chunks:
+            logger.info("RAG sample (lawyer): source=%s similarity=%.2f",
+                        lawyer_chunks[0]["source_file"], lawyer_chunks[0]["similarity"])
         return format_chunks(lawyer_chunks), format_chunks(biz_chunks), format_chunks(reg_chunks)
     except Exception as exc:
         logger.warning("RAG context fetch failed — running without RAG: %s", exc)
@@ -55,16 +63,25 @@ _JSON_FOOTER = (
 
 _RAG_BLOCK = "RELEVANT KNOWLEDGE FROM YOUR DATABASE:\n{ctx}\n"
 
+# Language instruction injected into every prompt when Urdu is selected
+_URDU_INSTRUCTION = (
+    "\nIMPORTANT: Write ALL your analysis in Urdu (اردو). "
+    "Keep legal terms, law names, section numbers, and clause quotes in their original language. "
+    "Write all explanations and risk descriptions in Urdu script.\n"
+)
 
-def _build_lawyer_prompt(rag_context: str, mode: str) -> str:
+
+def _build_lawyer_prompt(rag_context: str, mode: str, language: str = "english") -> str:
     ctx = rag_context or "No relevant precedents found."
     rag = _RAG_BLOCK.format(ctx=ctx)
+    lang_instr = _URDU_INSTRUCTION if language == "urdu" else ""
     if mode == "plain":
         return (
             "You are a friendly lawyer explaining contract risks to a regular person in Pakistan.\n"
             "Use simple everyday language. Avoid legal jargon.\n"
             "Explain risks as if talking to a friend who has never seen a contract before.\n"
-            "Use analogies if helpful. Be warm and approachable.\n\n"
+            "Use analogies if helpful. Be warm and approachable.\n"
+            + lang_instr + "\n"
             + rag +
             "\nFind the 3 most dangerous parts of this contract.\n"
             "For each: the exact problematic text, explain in simple terms why this is risky, severity HIGH/MEDIUM/LOW.\n"
@@ -73,7 +90,8 @@ def _build_lawyer_prompt(rag_context: str, mode: str) -> str:
     return (
         "You are a senior Pakistani contract lawyer with 20 years experience.\n"
         "You know Pakistani Contract Act 1872 and Companies Act 2017.\n"
-        "Analyze with precise legal terminology. Cite specific sections of Pakistani law where applicable.\n\n"
+        "Analyze with precise legal terminology. Cite specific sections of Pakistani law where applicable.\n"
+        + lang_instr + "\n"
         + rag +
         "\nFind the 3 most legally dangerous clauses.\n"
         "For each: exact clause quote, legal risk citing specific law, severity HIGH/MEDIUM/LOW.\n"
@@ -81,14 +99,16 @@ def _build_lawyer_prompt(rag_context: str, mode: str) -> str:
     )
 
 
-def _build_businessman_prompt(rag_context: str, mode: str) -> str:
+def _build_businessman_prompt(rag_context: str, mode: str, language: str = "english") -> str:
     ctx = rag_context or "No relevant precedents found."
     rag = _RAG_BLOCK.format(ctx=ctx)
+    lang_instr = _URDU_INSTRUCTION if language == "urdu" else ""
     if mode == "plain":
         return (
             "You are a friendly Pakistani business mentor helping a small business owner.\n"
             "Use simple conversational language. Explain money and business risks clearly.\n"
-            "Think of it as advice from an experienced uncle who runs a business.\n\n"
+            "Think of it as advice from an experienced uncle who runs a business.\n"
+            + lang_instr + "\n"
             + rag +
             "\nFind the 3 most dangerous commercial parts of this contract.\n"
             "For each: the exact problematic text, explain in plain terms how this could hurt their business or money, severity HIGH/MEDIUM/LOW.\n"
@@ -97,7 +117,8 @@ def _build_businessman_prompt(rag_context: str, mode: str) -> str:
     return (
         "You are a senior commercial advisor specializing in Pakistani SME contracts.\n"
         "Analyze with formal business terminology. Reference industry standards and commercial best practices.\n"
-        "Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.\n\n"
+        "Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.\n"
+        + lang_instr + "\n"
         + rag +
         "\nFind the 3 most commercially dangerous clauses.\n"
         "For each: exact clause quote, commercial impact with specific financial implications, severity HIGH/MEDIUM/LOW.\n"
@@ -105,14 +126,16 @@ def _build_businessman_prompt(rag_context: str, mode: str) -> str:
     )
 
 
-def _build_regulator_prompt(rag_context: str, mode: str) -> str:
+def _build_regulator_prompt(rag_context: str, mode: str, language: str = "english") -> str:
     ctx = rag_context or "No relevant precedents found."
     rag = _RAG_BLOCK.format(ctx=ctx)
+    lang_instr = _URDU_INSTRUCTION if language == "urdu" else ""
     if mode == "plain":
         return (
             "You are a helpful government officer explaining rules to a regular Pakistani citizen.\n"
             "Use simple language. Explain which rules this contract might break.\n"
-            "Make it easy to understand for someone with no legal background.\n\n"
+            "Make it easy to understand for someone with no legal background.\n"
+            + lang_instr + "\n"
             + rag +
             "\nFind the 3 biggest rule violations in this contract.\n"
             "For each: the exact problematic text, explain in simple terms which Pakistani rule this breaks, severity HIGH/MEDIUM/LOW.\n"
@@ -120,7 +143,8 @@ def _build_regulator_prompt(rag_context: str, mode: str) -> str:
         )
     return (
         "You are a Pakistani regulatory compliance officer.\n"
-        "Analyze against SECP, SBP and PTA regulations precisely. Cite specific regulation names and section numbers.\n\n"
+        "Analyze against SECP, SBP and PTA regulations precisely. Cite specific regulation names and section numbers.\n"
+        + lang_instr + "\n"
         + rag +
         "\nFind the 3 most serious compliance issues.\n"
         "For each: exact clause quote, specific regulation violated with section number, severity HIGH/MEDIUM/LOW.\n"
@@ -143,19 +167,26 @@ async def _call_gemini_with_retry(
     for attempt in range(max_retries):
         try:
             loop = asyncio.get_event_loop()
+            # Capture in local vars to avoid closure issues
+            _system = system_prompt
+            _content = contract_text
+            _model = settings.gemini_model
 
             def _blocking_stream():
                 chunks = []
                 for chunk in client.models.generate_content_stream(
-                    model=settings.gemini_model,
-                    contents=contract_text,
+                    model=_model,
+                    contents=_content,
                     config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
+                        system_instruction=_system,
                         temperature=TEMPERATURE,
                         max_output_tokens=1000,
                     ),
                 ):
-                    chunks.append(chunk.text or "")
+                    if chunk.text:
+                        chunks.append(chunk.text)
+                logger.info("Gemini stream returned %d chunks, total chars: %d",
+                            len(chunks), sum(len(c) for c in chunks))
                 return chunks
 
             return await loop.run_in_executor(None, _blocking_stream)
@@ -186,10 +217,13 @@ async def _stream_agent(
             if text:
                 full_text += text
                 await queue.put({"agent": agent_name, "chunk": text, "done": False})
+        logger.info("Agent %s completed. Output length: %d chars. Preview: %s",
+                    agent_name, len(full_text), full_text[:200])
         await queue.put({"agent": agent_name, "chunk": "", "done": True})
     except Exception as exc:
         is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
         err_msg = "Rate limit reached — please retry in a moment." if is_rate_limit else str(exc)
+        logger.error("Agent %s failed: %s", agent_name, exc)
         await queue.put({"agent": agent_name, "chunk": "", "done": True, "error": err_msg})
     return full_text
 
@@ -250,10 +284,12 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
 
     lawyer_ctx, biz_ctx, reg_ctx = await _fetch_rag_context(contract_text)
 
+    logger.info("Starting analysis — mode=%s language=%s", mode, language)
+
     agents = [
-        ("lawyer",      _build_lawyer_prompt(lawyer_ctx, mode)),
-        ("businessman", _build_businessman_prompt(biz_ctx, mode)),
-        ("regulator",   _build_regulator_prompt(reg_ctx, mode)),
+        ("lawyer",      _build_lawyer_prompt(lawyer_ctx, mode, language)),
+        ("businessman", _build_businessman_prompt(biz_ctx, mode, language)),
+        ("regulator",   _build_regulator_prompt(reg_ctx, mode, language)),
     ]
 
     agent_buffers: dict[str, str] = {name: "" for name, _ in agents}
@@ -281,7 +317,10 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
             lawyer=agent_buffers["lawyer"],
             businessman=agent_buffers["businessman"],
             regulator=agent_buffers["regulator"],
+            language=language,
         )
+        logger.info("Synthesis complete. risk_score=%s flags=%d",
+                    verdict.get("risk_score"), len(verdict.get("red_flags", [])))
         if language == "urdu":
             verdict = await _translate_verdict_to_urdu(verdict)
         yield {"agent": "synthesis", "chunk": "", "done": True, "verdict": verdict}
@@ -289,9 +328,23 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
         yield {"agent": "synthesis", "chunk": "", "done": True, "error": str(exc)}
 
 
-async def synthesize_verdict(lawyer: str, businessman: str, regulator: str) -> dict:
+async def synthesize_verdict(lawyer: str, businessman: str, regulator: str, language: str = "english") -> dict:
     client = _make_client()
-    prompt = f"LAWYER ANALYSIS:\n{lawyer}\n\nBUSINESSMAN ANALYSIS:\n{businessman}\n\nREGULATOR ANALYSIS:\n{regulator}\n\nSynthesize the above into a final verdict."
+
+    lang_instr = (
+        "\nIMPORTANT: Write the 'risk' field of each red_flag, all 'recommendations', "
+        "'summary_english', and 'summary_urdu' in Urdu (اردو). "
+        "Keep clause quotes, severity values, agent names, and risk_score unchanged.\n"
+        if language == "urdu" else ""
+    )
+
+    prompt = (
+        f"LAWYER ANALYSIS:\n{lawyer}\n\n"
+        f"BUSINESSMAN ANALYSIS:\n{businessman}\n\n"
+        f"REGULATOR ANALYSIS:\n{regulator}\n\n"
+        + lang_instr +
+        "Synthesize the above into a final verdict."
+    )
 
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(

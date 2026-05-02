@@ -17,6 +17,7 @@ export interface RedFlag {
 
 export interface Verdict {
   risk_score: number;
+  active_language?: "en" | "ur";
   red_flags: RedFlag[];
   recommendations: string[];
   summary_english: string;
