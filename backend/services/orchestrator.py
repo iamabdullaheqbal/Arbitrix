@@ -180,7 +180,7 @@ async def _call_gemini_with_retry(
                     config=types.GenerateContentConfig(
                         system_instruction=_system,
                         temperature=TEMPERATURE,
-                        max_output_tokens=1000,
+                        max_output_tokens=2000,
                     ),
                 ):
                     if chunk.text:
@@ -355,7 +355,7 @@ async def synthesize_verdict(lawyer: str, businessman: str, regulator: str, lang
             config=types.GenerateContentConfig(
                 system_instruction=SYNTHESIS_SYSTEM_PROMPT,
                 temperature=TEMPERATURE,
-                max_output_tokens=2000,
+                max_output_tokens=3000,
             ),
         ),
     )
