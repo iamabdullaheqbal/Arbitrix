@@ -18,8 +18,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function VerdictClient() {
   const router = useRouter();
-  const { verdict, lang, T, contractType, resetAnalysis, analysisError, industry, role } = useApp();
-  const [plain, setPlain] = useState(true);
+  const { verdict, lang, T, contractType, resetAnalysis, analysisError, industry, role, mode } = useApp();
 
   useEffect(() => {
     if (!verdict && !analysisError) {
@@ -92,7 +91,7 @@ export default function VerdictClient() {
             </div>
           </div>
           <div className="text-center min-w-[140px] rounded-2xl bg-white/15 backdrop-blur px-6 py-4">
-            <div className="text-xs uppercase tracking-wider opacity-80">{T.verdict.gauge}</div>
+            <div className="text-xs uppercase tracking-wider opacity-80">{lang === "ur" ? "خطرے کا اسکور" : T.verdict.gauge}</div>
             <div className="text-5xl font-bold mt-1">
               {score.toFixed(1)}<span className="text-2xl opacity-70">/10</span>
             </div>
@@ -112,12 +111,20 @@ export default function VerdictClient() {
             }`}
           >
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              {which === "english" ? T.verdict.english : T.verdict.urdu}
+              {which === "english"
+                ? (lang === "ur" ? "انگریزی خلاصہ" : mode === "plain" ? "In Simple Words" : "Executive Summary")
+                : (lang === "ur" ? "خلاصہ" : "Urdu Summary")}
             </div>
             {which === "english" ? (
               <p className="text-base leading-relaxed">{verdict.summary_english}</p>
             ) : (
-              <p className="text-lg leading-loose font-urdu" dir="rtl" style={{ lineHeight: lang === 'ur' ? '2.2' : 'inherit' }}>{verdict.summary_urdu}</p>
+              <p
+                className="text-lg leading-loose font-urdu"
+                dir="rtl"
+                style={{ fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2.2" }}
+              >
+                {verdict.summary_urdu || verdict.summary_english}
+              </p>
             )}
           </div>
         ))}
@@ -128,7 +135,7 @@ export default function VerdictClient() {
         <div className="md:col-span-3 space-y-6">
           <h3 className={`text-xl font-bold flex items-center gap-2 ${lang === "ur" ? "font-urdu" : ""}`}>
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            {lang === "ur" ? "نشاندہی کردہ خطرات (Red Flags)" : "Identified Red Flags"}
+            {lang === "ur" ? "سرخ جھنڈے" : "Identified Red Flags"}
           </h3>
           <div className="space-y-4">
             {verdict.red_flags.map((flag, i) => (
@@ -142,12 +149,16 @@ export default function VerdictClient() {
                       {flag.severity}
                     </span>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      Found by {flag.agent}
+                      {lang === "ur" ? {lawyer: "وکیل", businessman: "کاروباری مشیر", regulator: "ریگولیٹری افسر"}[flag.agent] : `Found by ${flag.agent}`}
                     </span>
                   </div>
                 </div>
                 <p className="font-bold text-foreground mb-2">{flag.clause}</p>
-                <p className={`text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}>
+                <p
+                  className={`text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}
+                  dir={lang === "ur" ? "rtl" : undefined}
+                  style={lang === "ur" ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2" } : undefined}
+                >
                   {flag.risk}
                 </p>
               </div>
@@ -158,13 +169,17 @@ export default function VerdictClient() {
         <div className="md:col-span-2 space-y-6">
           <h3 className={`text-xl font-bold flex items-center gap-2 ${lang === "ur" ? "font-urdu" : ""}`}>
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            {lang === "ur" ? "سفارشات (Recommendations)" : "Action Items"}
+            {lang === "ur" ? "سفارشات" : "Action Items"}
           </h3>
           <div className="rounded-2xl bg-emerald-50/50 border border-emerald-100 p-6 space-y-4">
             {verdict.recommendations.map((rec, i) => (
               <div key={i} className="flex gap-3">
                 <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                <p className={`text-sm text-emerald-900 leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}>
+                <p
+                  className={`text-sm text-emerald-900 leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}
+                  dir={lang === "ur" ? "rtl" : undefined}
+                  style={lang === "ur" ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2" } : undefined}
+                >
                   {rec}
                 </p>
               </div>
@@ -175,27 +190,15 @@ export default function VerdictClient() {
 
       <div className="h-px bg-border/60" />
 
-      {/* Debate (Previous Design Style) */}
+      {/* Debate */}
       <div>
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h3 className={`text-xl font-bold ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>{T.verdict.debate}</h3>
-          <div className="inline-flex rounded-full border border-border bg-card p-1 shadow-soft text-xs font-medium">
-            <button
-              onClick={() => setPlain(false)}
-              className={`px-3 py-1.5 rounded-full transition-smooth ${!plain ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >{T.verdict.modeTech}</button>
-            <button
-              onClick={() => setPlain(true)}
-              className={`px-3 py-1.5 rounded-full transition-smooth ${plain ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >{T.verdict.modePlain}</button>
-          </div>
-        </div>
-        <LiveDebate 
-          plain={plain} 
-          contractType={contractType} 
-          industry={industry || "Business"} 
-          role={role || "Owner"} 
-          tier={tier} 
+        <h3 className={`text-xl font-bold mb-4 ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>{T.verdict.debate}</h3>
+        <LiveDebate
+          plain={mode === "plain"}
+          contractType={contractType}
+          industry={industry || "Business"}
+          role={role || "Owner"}
+          tier={tier}
         />
       </div>
 

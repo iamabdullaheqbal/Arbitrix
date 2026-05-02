@@ -10,10 +10,13 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type AgentId = "lawyer" | "businessman" | "regulator";
 
-const AGENTS: Record<AgentId, { label: string; labelUr: string; icon: typeof Briefcase; color: string; ring: string }> = {
-  lawyer:     { label: "Lawyer",      labelUr: "وکیل",       icon: Gavel,     color: "from-sky-500 to-indigo-600",   ring: "ring-sky-400/40"     },
-  businessman:{ label: "Businessman", labelUr: "کاروباری",   icon: Briefcase, color: "from-amber-500 to-orange-600", ring: "ring-amber-400/40"   },
-  regulator:  { label: "Regulator",   labelUr: "ریگولیٹر",   icon: Building2, color: "from-emerald-500 to-teal-600", ring: "ring-emerald-400/40" },
+const AGENTS: Record<AgentId, {
+  label: string; labelPlain: string; labelUr: string; labelUrPlain: string;
+  icon: typeof Briefcase; color: string; ring: string
+}> = {
+  lawyer:     { label: "Legal Analysis",     labelPlain: "Lawyer Says",           labelUr: "قانونی تجزیہ",      labelUrPlain: "وکیل کہتا ہے",       icon: Gavel,     color: "from-sky-500 to-indigo-600",   ring: "ring-sky-400/40"     },
+  businessman:{ label: "Commercial Analysis", labelPlain: "Business Advisor Says", labelUr: "تجارتی تجزیہ",      labelUrPlain: "کاروباری مشیر",       icon: Briefcase, color: "from-amber-500 to-orange-600", ring: "ring-amber-400/40"   },
+  regulator:  { label: "Regulatory Analysis", labelPlain: "Rules Checker Says",    labelUr: "ریگولیٹری تجزیہ",   labelUrPlain: "قوانین چیکر",         icon: Building2, color: "from-emerald-500 to-teal-600", ring: "ring-emerald-400/40" },
 };
 
 interface Finding {
@@ -39,7 +42,7 @@ const SEVERITY_STYLES: Record<string, string> = {
   LOW:    "bg-blue-100 text-blue-700 border-blue-200",
 };
 
-function FindingsCard({ findings }: { findings: Finding[] }) {
+function FindingsCard({ findings, lang }: { findings: Finding[]; lang: string }) {
   return (
     <div className="space-y-3">
       {findings.map((f, i) => (
@@ -51,10 +54,22 @@ function FindingsCard({ findings }: { findings: Finding[] }) {
             {f.severity === "HIGH" && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
             {f.severity === "LOW"  && <ShieldCheck   className="h-3.5 w-3.5 text-blue-500" />}
           </div>
-          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Clause</p>
-          <p className="text-sm font-medium text-foreground leading-snug">{f.clause}</p>
-          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide mt-1">Risk</p>
-          <p className="text-sm text-muted-foreground leading-relaxed">{f.risk}</p>
+          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">
+            {lang === "ur" ? "متنازعہ شق" : "Clause"}
+          </p>
+          <blockquote className="text-sm font-medium text-foreground leading-snug border-l-2 border-muted-foreground/30 pl-3 italic">
+            "{f.clause}"
+          </blockquote>
+          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide mt-1">
+            {lang === "ur" ? "خطرہ" : "Risk"}
+          </p>
+          <p
+            className={`text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}
+            dir={lang === "ur" ? "rtl" : undefined}
+            style={lang === "ur" ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2" } : undefined}
+          >
+            {f.risk}
+          </p>
         </div>
       ))}
     </div>
@@ -63,7 +78,7 @@ function FindingsCard({ findings }: { findings: Finding[] }) {
 
 export default function DebateClient() {
   const router = useRouter();
-  const { contractText, setAgentOutputs, setAgentDone, setVerdict, setAnalysisError, lang, resetAnalysis } = useApp();
+  const { contractText, setAgentOutputs, setAgentDone, setVerdict, setAnalysisError, lang, resetAnalysis, mode } = useApp();
 
   const [outputs, setOutputs] = useState<Record<AgentId, string>>({ lawyer: "", businessman: "", regulator: "" });
   const [done, setDone] = useState<Record<AgentId, boolean>>({ lawyer: false, businessman: false, regulator: false });
@@ -97,7 +112,7 @@ export default function DebateClient() {
       const res = await fetch(`${API}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contract_text: contractText }),
+        body: JSON.stringify({ contract_text: contractText, mode, language: lang === "ur" ? "urdu" : "english" }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Analysis failed" }));
@@ -171,9 +186,14 @@ export default function DebateClient() {
     setOutputs({ lawyer: "", businessman: "", regulator: "" });
     setDone({ lawyer: false, businessman: false, regulator: false });
     setAgentErrors({ lawyer: null, businessman: null, regulator: null });
-    setSynthesizing(false); setStreamError(null); setConnected(false);
-    resetAnalysis();
-    router.replace("/analyze");
+    setAgentOutputs(() => ({ lawyer: "", businessman: "", regulator: "" }));
+    setAgentDone(() => ({ lawyer: false, businessman: false, regulator: false }));
+    setSynthesizing(false);
+    setStreamError(null);
+    setConnected(false);
+    // Re-run stream in-place — no navigation
+    hasStarted.current = true;
+    startStream();
   };
 
   const allDone = done.lawyer && done.businessman && done.regulator;
@@ -236,7 +256,9 @@ export default function DebateClient() {
                 </div>
                 <div>
                   <div className={`font-semibold text-sm ${lang === "ur" ? "font-urdu" : ""}`}>
-                    {lang === "ur" ? agent.labelUr : agent.label}
+                    {lang === "ur"
+                      ? (mode === "plain" ? agent.labelUrPlain : agent.labelUr)
+                      : (mode === "plain" ? agent.labelPlain : agent.label)}
                   </div>
                   <div className="text-[10px] uppercase tracking-wider text-white/70">
                     {hasError ? "Error" : done[id] ? "Done" : isActive ? "Analyzing…" : "Waiting…"}
@@ -251,8 +273,7 @@ export default function DebateClient() {
                 {hasError ? (
                   <span className="text-destructive text-sm">{lang === "ur" ? "مشیر دستیاب نہیں" : "Agent unavailable"}</span>
                 ) : findings ? (
-                  /* Streaming done — render structured cards */
-                  <FindingsCard findings={findings} />
+                  <FindingsCard findings={findings} lang={lang} />
                 ) : raw ? (
                   /* Still streaming — show raw text with cursor */
                   <div className="font-mono text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">

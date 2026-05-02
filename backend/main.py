@@ -80,7 +80,7 @@ async def analyze_contract(request: AnalyzeRequest):
     
     async def event_generator():
         try:
-            async for event in analyze_contract_stream(request.contract_text):
+            async for event in analyze_contract_stream(request.contract_text, mode=request.mode, language=request.language):
                 yield {"data": json.dumps(event)}
         except Exception as exc:
             yield {"data": json.dumps({"error": str(exc)})}

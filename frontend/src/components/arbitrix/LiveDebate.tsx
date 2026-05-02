@@ -147,76 +147,61 @@ const flagMeta = {
 
 export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props) => {
   const { lang, agentOutputs } = useApp();
-  
-  const script = useMemo(() => {
-    // If we have real data from the agents, use it. 
-    // Otherwise, fall back to the demo script.
-    const hasRealData = agentOutputs.lawyer || agentOutputs.businessman || agentOutputs.regulator;
-    
-    // Heuristic: if we have data and it's English, but user wants Urdu, show the Urdu demo script instead
-    const isEnglishData = agentOutputs.lawyer && /^[A-Za-z0-9]/.test(agentOutputs.lawyer.trim().charAt(0));
 
-    if (hasRealData && (lang === "en" || !isEnglishData)) {
-      const realScript: Turn[] = [];
-      if (agentOutputs.lawyer) {
-        realScript.push({
-          speaker: "lawyer",
-          tech: agentOutputs.lawyer,
-          plain: agentOutputs.lawyer,
-          flag: "warn"
-        });
-      }
-      if (agentOutputs.businessman) {
-        realScript.push({
-          speaker: "businessman",
-          tech: agentOutputs.businessman,
-          plain: agentOutputs.businessman,
-          flag: "ok"
-        });
-      }
-      if (agentOutputs.regulator) {
-        realScript.push({
-          speaker: "regulator",
-          tech: agentOutputs.regulator,
-          plain: agentOutputs.regulator,
-          flag: "risk"
-        });
-      }
-      return realScript;
-    }
-    
-    return buildScript(contractType, industry, tier, lang);
-  }, [contractType, industry, tier, agentOutputs, lang]);
+  // Detect whether we have real agent data
+  const hasRealData = !!(agentOutputs.lawyer || agentOutputs.businessman || agentOutputs.regulator);
 
-  const [turnIdx, setTurnIdx] = useState(0);     // current turn being typed
-  const [typed, setTyped] = useState("");        // streamed text of current turn
-  const [done, setDone] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState(1);         // 1x or 2x
+  // Parse real agent JSON into structured findings for direct rendering
+  const realFindings = useMemo(() => {
+    if (!hasRealData) return null;
+
+    const parse = (raw: string): Array<{ clause: string; risk: string; severity: string }> => {
+      try {
+        const cleaned = raw.trim().replace(/^```[a-z]*\n?/i, "").replace(/```$/, "").trim();
+        const obj = JSON.parse(cleaned);
+        return Array.isArray(obj?.findings) ? obj.findings : [];
+      } catch {
+        return [];
+      }
+    };
+
+    return {
+      lawyer:      parse(agentOutputs.lawyer),
+      businessman: parse(agentOutputs.businessman),
+      regulator:   parse(agentOutputs.regulator),
+    };
+  }, [agentOutputs, hasRealData]);
+
+  // Demo script for when there's no real data
+  const script = useMemo(() => buildScript(contractType, industry, tier, lang),
+    [contractType, industry, tier, lang]);
+
+  const [turnIdx, setTurnIdx] = useState(0);
+  const [typed, setTyped]     = useState("");
+  const [done, setDone]       = useState(false);
+  const [paused, setPaused]   = useState(false);
+  const [speed, setSpeed]     = useState(1);
   const [thinking, setThinking] = useState<AdvisorId | null>(script[0]?.speaker ?? null);
 
   const scrollerRef = useRef<HTMLDivElement>(null);
 
-  // Scroll on update
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [typed, turnIdx]);
 
-  // Streaming engine — tracks progress by character index, independent of plain/tech toggle
+  // Streaming engine — only runs for demo script, not real data
   useEffect(() => {
+    if (hasRealData) return;
     if (paused || done) return;
     if (turnIdx >= script.length) { setDone(true); setThinking(null); return; }
 
     const turn = script[turnIdx];
-    // Use the longer of the two texts as the canonical length to stream to,
-    // so switching modes mid-stream never causes a length mismatch.
     const techText  = turn.tech;
     const plainText = turn.plain;
     const canonical = techText.length >= plainText.length ? techText : plainText;
 
-    // Pre-turn "thinking" pause
     if (typed.length === 0) {
       setThinking(turn.speaker);
       const t = setTimeout(() => {
@@ -234,20 +219,98 @@ export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props)
       return () => clearTimeout(t);
     }
 
-    // Finished this turn — pause then advance
-    const t = setTimeout(() => {
-      setTurnIdx((i) => i + 1);
-      setTyped("");
-    }, 700 / speed);
+    const t = setTimeout(() => { setTurnIdx((i) => i + 1); setTyped(""); }, 700 / speed);
     return () => clearTimeout(t);
-  }, [typed, turnIdx, paused, done, script, speed]);
+  }, [typed, turnIdx, paused, done, script, speed, hasRealData]);
 
-  // Reset stream only when the script itself changes (new analysis), NOT when plain toggles
   useEffect(() => {
     setTurnIdx(0); setTyped(""); setDone(false); setThinking(script[0]?.speaker ?? null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script]);
 
+  // ── Real data path: render findings directly, no animation ──────────────
+  if (hasRealData && realFindings) {
+    const AGENT_ORDER: Array<{ id: AdvisorId; findings: typeof realFindings.lawyer }> = [
+      { id: "lawyer",      findings: realFindings.lawyer },
+      { id: "businessman", findings: realFindings.businessman },
+      { id: "regulator",   findings: realFindings.regulator },
+    ];
+
+    return (
+      <div className="rounded-3xl border border-border bg-gradient-to-b from-card to-muted/30 shadow-elegant overflow-hidden">
+        <div className="flex items-center gap-2.5 px-5 py-3 border-b border-border bg-card/80 backdrop-blur">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <span className="text-xs font-semibold tracking-wider uppercase text-foreground/80">
+            {lang === "ur" ? "تینوں مشیروں کا تجزیہ" : "Three-advisor analysis complete"}
+          </span>
+        </div>
+
+        <div className="px-4 md:px-6 py-5 space-y-6">
+          {AGENT_ORDER.map(({ id, findings }) => {
+            const a = ADVISORS[id];
+            const Icon = a.icon;
+            if (!findings || findings.length === 0) return null;
+            return (
+              <div key={id}>
+                {/* Advisor header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br ${a.color} text-white shadow-soft flex-shrink-0`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className={`font-semibold text-sm ${lang === "ur" ? "font-urdu" : ""}`}>
+                    {lang === "ur" ? a.nameUr : a.name}
+                  </span>
+                </div>
+
+                {/* Findings */}
+                <div className="space-y-3 ml-12">
+                  {findings.map((f, i) => {
+                    const sev = (f.severity || "").toUpperCase();
+                    const borderColor = sev === "HIGH" ? "#dc2626" : sev === "MEDIUM" ? "#d97706" : "#16a34a";
+                    const badgeCls = sev === "HIGH"
+                      ? "bg-red-100 text-red-700"
+                      : sev === "MEDIUM"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-green-100 text-green-700";
+
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-border bg-card p-4"
+                        style={{ borderLeft: `4px solid ${borderColor}` }}
+                      >
+                        <span className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-3 ${badgeCls}`}>
+                          {sev === "HIGH" ? (lang === "ur" ? "زیادہ خطرہ" : "HIGH")
+                            : sev === "MEDIUM" ? (lang === "ur" ? "درمیانہ خطرہ" : "MEDIUM")
+                            : (lang === "ur" ? "کم خطرہ" : "LOW")}
+                        </span>
+
+                        <blockquote className="border-l-2 border-muted-foreground/30 pl-3 mb-3">
+                          <p className="text-sm italic text-foreground/80 leading-relaxed">
+                            "{f.clause}"
+                          </p>
+                        </blockquote>
+
+                        <p
+                          className={`text-sm text-muted-foreground leading-relaxed ${lang === "ur" ? "font-urdu" : ""}`}
+                          dir={lang === "ur" ? "rtl" : undefined}
+                          style={lang === "ur" ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2" } : undefined}
+                        >
+                          {f.risk}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Demo script path: animated typewriter ───────────────────────────────
   const visibleTurns = script.slice(0, turnIdx);
   const activeTurn = !done ? script[turnIdx] : null;
 

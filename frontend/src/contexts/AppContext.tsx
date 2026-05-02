@@ -6,6 +6,7 @@ import { Lang, t } from "@/lib/i18n";
 export type ContractType =
   | "vendor" | "employment" | "partnership" | "property" | "freelance" | "other";
 export type UserRole = "owner" | "freelancer";
+export type AnalysisMode = "technical" | "plain";
 
 export interface RedFlag {
   clause: string;
@@ -51,6 +52,8 @@ interface AppCtx {
   // Analysis state
   contractText: string;
   setContractText: (s: string) => void;
+  mode: AnalysisMode;
+  setMode: (m: AnalysisMode) => void;
   agentOutputs: AgentOutputs;
   setAgentOutputs: (fn: (prev: AgentOutputs) => AgentOutputs) => void;
   agentDone: AgentDone;
@@ -77,6 +80,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Analysis state
   const [contractText, setContractText] = useState("");
+  const [mode, setMode] = useState<AnalysisMode>("technical");
   const [agentOutputs, setAgentOutputs] = useState<AgentOutputs>(EMPTY_OUTPUTS);
   const [agentDone, setAgentDone] = useState<AgentDone>(EMPTY_DONE);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
@@ -93,6 +97,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAgentDone(EMPTY_DONE);
     setVerdict(null);
     setAnalysisError(null);
+    // mode is intentionally preserved across analyses
   };
 
   const value = useMemo(
@@ -102,6 +107,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       role, setRole,
       industry, setIndustry,
       contractText, setContractText,
+      mode, setMode,
       agentOutputs, setAgentOutputs,
       agentDone, setAgentDone,
       verdict, setVerdict,
@@ -109,7 +115,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       resetAnalysis,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lang, contractType, role, industry, contractText, agentOutputs, agentDone, verdict, analysisError]
+    [lang, contractType, role, industry, contractText, mode, agentOutputs, agentDone, verdict, analysisError]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

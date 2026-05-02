@@ -9,6 +9,8 @@ class UploadResponse(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     contract_text: str
+    mode: str = "technical"      # "technical" | "plain"
+    language: str = "english"    # "english" | "urdu"
 
 
 class Finding(BaseModel):
