@@ -6,9 +6,6 @@ from typing import AsyncGenerator
 from google import genai
 from google.genai import types
 
-from agents.lawyer import LAWYER_SYSTEM_PROMPT
-from agents.businessman import BUSINESSMAN_SYSTEM_PROMPT
-from agents.regulator import REGULATOR_SYSTEM_PROMPT
 from agents.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from config import settings
 
@@ -33,14 +30,15 @@ async def _fetch_rag_context(contract_text: str) -> tuple[str, str, str]:
 
         snippet = contract_text[:300]
 
-        lawyer_q = f"legal risk unenforceable clause Pakistani contract law {snippet}"
-        biz_q = f"commercial payment liability unfair terms Pakistani business {snippet}"
-        reg_q = f"SECP SBP regulatory compliance Pakistani law violation {snippet}"
+        lawyer_q     = f"legal risk unenforceable clause Pakistani contract law {snippet}"
+        biz_q        = f"commercial payment liability unfair terms Pakistani business {snippet}"
+        reg_q        = f"SECP SBP regulatory compliance Pakistani law {snippet}"
 
+        # No doc_type filter — search all chunks so every agent gets results
         lawyer_chunks, biz_chunks, reg_chunks = await asyncio.gather(
-            retrieve(lawyer_q, top_k=5, doc_type="core_law"),
-            retrieve(biz_q, top_k=5, doc_type="sample_contracts"),
-            retrieve(reg_q, top_k=5, doc_type="secp"),
+            retrieve(lawyer_q,  top_k=5),
+            retrieve(biz_q,     top_k=5),
+            retrieve(reg_q,     top_k=5),
         )
 
         return (
@@ -54,33 +52,46 @@ async def _fetch_rag_context(contract_text: str) -> tuple[str, str, str]:
 
 
 def _build_lawyer_prompt(rag_context: str) -> str:
-    if not rag_context:
-        return LAWYER_SYSTEM_PROMPT
-    return (
-        LAWYER_SYSTEM_PROMPT.rstrip()
-        + f"\n\nRELEVANT LEGAL PRECEDENTS FROM YOUR KNOWLEDGE BASE:\n{rag_context}\n\n"
-        "Using the above precedents as reference, analyze the contract below."
-    )
+    return f"""You are a senior Pakistani contract lawyer with 20 years experience.
+You know Pakistani Contract Act 1872 and Companies Act 2017.
+
+RELEVANT LEGAL KNOWLEDGE FROM YOUR DATABASE:
+{rag_context if rag_context else "No relevant precedents found."}
+
+Using the above as reference, analyze this contract.
+Find the 3 most legally dangerous clauses.
+For each: exact clause quote, legal risk 2 sentences, severity HIGH/MEDIUM/LOW.
+Respond ONLY in raw JSON no markdown no backticks:
+{{"findings": [{{"clause": "...", "risk": "...", "severity": "HIGH"}}]}}"""
 
 
 def _build_businessman_prompt(rag_context: str) -> str:
-    if not rag_context:
-        return BUSINESSMAN_SYSTEM_PROMPT
-    return (
-        BUSINESSMAN_SYSTEM_PROMPT.rstrip()
-        + f"\n\nRELEVANT COMMERCIAL PRECEDENTS FROM YOUR KNOWLEDGE BASE:\n{rag_context}\n\n"
-        "Using the above precedents as reference, analyze the contract below."
-    )
+    return f"""You are a hard-nosed Pakistani SME owner who has been burned by bad contracts before.
+You care only about commercial and financial risk.
+
+RELEVANT COMMERCIAL KNOWLEDGE FROM YOUR DATABASE:
+{rag_context if rag_context else "No relevant precedents found."}
+
+Using the above as reference, analyze this contract.
+Find the 3 most commercially dangerous clauses.
+Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.
+For each: exact clause quote, business impact 2 sentences, severity HIGH/MEDIUM/LOW.
+Respond ONLY in raw JSON no markdown no backticks:
+{{"findings": [{{"clause": "...", "risk": "...", "severity": "HIGH"}}]}}"""
 
 
 def _build_regulator_prompt(rag_context: str) -> str:
-    if not rag_context:
-        return REGULATOR_SYSTEM_PROMPT
-    return (
-        REGULATOR_SYSTEM_PROMPT.rstrip()
-        + f"\n\nRELEVANT REGULATORY PRECEDENTS FROM YOUR KNOWLEDGE BASE:\n{rag_context}\n\n"
-        "Using the above precedents as reference, analyze the contract below."
-    )
+    return f"""You are a Pakistani regulatory compliance officer.
+You check contracts against SECP regulations, SBP guidelines, PTA rules, and relevant Pakistani sector law.
+
+RELEVANT REGULATORY KNOWLEDGE FROM YOUR DATABASE:
+{rag_context if rag_context else "No relevant precedents found."}
+
+Using the above as reference, analyze this contract.
+Find the 3 most serious regulatory compliance issues.
+For each: exact clause quote, which regulation it may violate, severity HIGH/MEDIUM/LOW.
+Respond ONLY in raw JSON no markdown no backticks:
+{{"findings": [{{"clause": "...", "risk": "...", "severity": "HIGH"}}]}}"""
 
 
 # ---------------------------------------------------------------------------

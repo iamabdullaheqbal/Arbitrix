@@ -204,29 +204,33 @@ export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props)
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [typed, turnIdx]);
 
-  // Streaming engine
+  // Streaming engine — tracks progress by character index, independent of plain/tech toggle
   useEffect(() => {
     if (paused || done) return;
     if (turnIdx >= script.length) { setDone(true); setThinking(null); return; }
 
     const turn = script[turnIdx];
-    const fullText = plain ? turn.plain : turn.tech;
+    // Use the longer of the two texts as the canonical length to stream to,
+    // so switching modes mid-stream never causes a length mismatch.
+    const techText  = turn.tech;
+    const plainText = turn.plain;
+    const canonical = techText.length >= plainText.length ? techText : plainText;
 
     // Pre-turn "thinking" pause
     if (typed.length === 0) {
       setThinking(turn.speaker);
       const t = setTimeout(() => {
         setThinking(null);
-        setTyped(fullText.slice(0, 1));
+        setTyped(canonical.slice(0, 1));
       }, 650 / speed);
       return () => clearTimeout(t);
     }
 
-    if (typed.length < fullText.length) {
-      const remain = fullText.length - typed.length;
+    if (typed.length < canonical.length) {
+      const remain = canonical.length - typed.length;
       const step = Math.max(1, Math.min(4, Math.floor(remain / 40) + 1));
       const delay = (12 + Math.random() * 22) / speed;
-      const t = setTimeout(() => setTyped(fullText.slice(0, typed.length + step)), delay);
+      const t = setTimeout(() => setTyped(canonical.slice(0, typed.length + step)), delay);
       return () => clearTimeout(t);
     }
 
@@ -236,12 +240,13 @@ export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props)
       setTyped("");
     }, 700 / speed);
     return () => clearTimeout(t);
-  }, [typed, turnIdx, paused, done, plain, script, speed]);
+  }, [typed, turnIdx, paused, done, script, speed]);
 
-  // Reset stream when mode/script changes
+  // Reset stream only when the script itself changes (new analysis), NOT when plain toggles
   useEffect(() => {
     setTurnIdx(0); setTyped(""); setDone(false); setThinking(script[0]?.speaker ?? null);
-  }, [plain, script]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [script]);
 
   const visibleTurns = script.slice(0, turnIdx);
   const activeTurn = !done ? script[turnIdx] : null;
@@ -325,7 +330,18 @@ export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props)
         )}
 
         {activeTurn && !thinking && (
-          <DebateBubble turn={activeTurn} text={typed} typing lang={lang} />
+          <DebateBubble
+            turn={activeTurn}
+            text={(() => {
+              // typed tracks the canonical (longer) text; slice the display text proportionally
+              const canonical = activeTurn.tech.length >= activeTurn.plain.length ? activeTurn.tech : activeTurn.plain;
+              const display   = plain ? activeTurn.plain : activeTurn.tech;
+              const ratio     = canonical.length > 0 ? typed.length / canonical.length : 0;
+              return display.slice(0, Math.round(display.length * ratio));
+            })()}
+            typing
+            lang={lang}
+          />
         )}
 
         {done && (

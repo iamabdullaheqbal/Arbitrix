@@ -35,48 +35,47 @@ def read_document(path: Path) -> str:
 # Chunker
 # ---------------------------------------------------------------------------
 
-def _split_sentences(text: str) -> list[str]:
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+def chunk_by_sentences(text: str, sentences_per_chunk: int = 4) -> list[str]:
+    """
+    Split *text* into overlapping sentence-based chunks.
 
+    Rules:
+    - Split on sentence boundaries (. ! ?)
+    - Group sentences_per_chunk sentences per chunk
+    - Overlap of 1 sentence between consecutive chunks
+    - Keep chunks between 40–800 chars; split oversized chunks at commas
+    - Skip sentences shorter than 20 chars (headers, page numbers, etc.)
+    """
+    # Normalise whitespace first
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
 
-def chunk_text(text: str, min_len: int = 50, max_len: int = 500, overlap: int = 50) -> list[str]:
-    """Split text into chunks of min_len–max_len chars with *overlap* carry-over."""
-    paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
+    # Split on sentence-ending punctuation followed by whitespace or end
+    raw = re.split(r"(?<=[.!?])[\s]+", text)
+    sentences = [s.strip() for s in raw if len(s.strip()) > 20]
+
     chunks: list[str] = []
-    carry = ""
+    step = max(1, sentences_per_chunk - 1)  # overlap = 1 sentence
 
-    for para in paragraphs:
-        working = (carry + " " + para).strip() if carry else para
+    for i in range(0, len(sentences), step):
+        group = sentences[i : i + sentences_per_chunk]
+        chunk = " ".join(group).strip()
 
-        if len(working) <= max_len:
-            if len(working) >= min_len:
-                chunks.append(working)
-                carry = working[-overlap:] if len(working) > overlap else working
-            else:
-                carry = working  # accumulate short paragraphs
+        if len(chunk) < 40:
             continue
 
-        # Para too long — split by sentence
-        sentences = _split_sentences(working)
-        buf = ""
-        for sent in sentences:
-            candidate = (buf + " " + sent).strip() if buf else sent
-            if len(candidate) > max_len:
-                if len(buf) >= min_len:
-                    chunks.append(buf)
-                    carry = buf[-overlap:] if len(buf) > overlap else buf
-                buf = (carry + " " + sent).strip() if carry else sent
-            else:
-                buf = candidate
-        if len(buf) >= min_len:
-            chunks.append(buf)
-            carry = buf[-overlap:] if len(buf) > overlap else buf
-        elif buf:
-            carry = buf
-
-    # Flush remaining carry if substantial
-    if len(carry) >= min_len and (not chunks or chunks[-1] != carry):
-        chunks.append(carry)
+        if len(chunk) <= 800:
+            chunks.append(chunk)
+        else:
+            # Split oversized chunk at commas
+            parts = chunk.split(", ")
+            mid = max(1, len(parts) // 2)
+            left = ", ".join(parts[:mid]).strip()
+            right = ", ".join(parts[mid:]).strip()
+            if len(left) >= 40:
+                chunks.append(left)
+            if len(right) >= 40:
+                chunks.append(right)
 
     return chunks
 
@@ -134,7 +133,7 @@ async def ingest_file(filepath: str | Path, doc_type: str = "general") -> int:
             logger.error("Failed to read %s: %s", path.name, exc)
             return 0
 
-        chunks = chunk_text(raw_text)
+        chunks = chunk_by_sentences(raw_text)
         if not chunks:
             logger.warning("No chunks produced from %s", path.name)
             return 0

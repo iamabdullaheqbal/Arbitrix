@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/contexts/AppContext";
-import { Briefcase, Gavel, Building2, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
+import { Briefcase, Gavel, Building2, Sparkles, AlertCircle, RefreshCw, AlertTriangle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -11,25 +11,55 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 type AgentId = "lawyer" | "businessman" | "regulator";
 
 const AGENTS: Record<AgentId, { label: string; labelUr: string; icon: typeof Briefcase; color: string; ring: string }> = {
-  lawyer: {
-    label: "Lawyer", labelUr: "وکیل",
-    icon: Gavel,
-    color: "from-sky-500 to-indigo-600",
-    ring: "ring-sky-400/40",
-  },
-  businessman: {
-    label: "Businessman", labelUr: "کاروباری",
-    icon: Briefcase,
-    color: "from-amber-500 to-orange-600",
-    ring: "ring-amber-400/40",
-  },
-  regulator: {
-    label: "Regulator", labelUr: "ریگولیٹر",
-    icon: Building2,
-    color: "from-emerald-500 to-teal-600",
-    ring: "ring-emerald-400/40",
-  },
+  lawyer:     { label: "Lawyer",      labelUr: "وکیل",       icon: Gavel,     color: "from-sky-500 to-indigo-600",   ring: "ring-sky-400/40"     },
+  businessman:{ label: "Businessman", labelUr: "کاروباری",   icon: Briefcase, color: "from-amber-500 to-orange-600", ring: "ring-amber-400/40"   },
+  regulator:  { label: "Regulator",   labelUr: "ریگولیٹر",   icon: Building2, color: "from-emerald-500 to-teal-600", ring: "ring-emerald-400/40" },
 };
+
+interface Finding {
+  clause: string;
+  risk: string;
+  severity: "HIGH" | "MEDIUM" | "LOW";
+}
+
+/** Try to parse agent JSON output into structured findings. Returns null if not parseable. */
+function parseFindings(raw: string): Finding[] | null {
+  try {
+    const text = raw.trim().replace(/^```[a-z]*\n?/, "").replace(/```$/, "").trim();
+    const obj = JSON.parse(text);
+    const findings = obj?.findings;
+    if (Array.isArray(findings) && findings.length > 0) return findings as Finding[];
+  } catch { /* not JSON yet — still streaming */ }
+  return null;
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  HIGH:   "bg-red-100 text-red-700 border-red-200",
+  MEDIUM: "bg-amber-100 text-amber-700 border-amber-200",
+  LOW:    "bg-blue-100 text-blue-700 border-blue-200",
+};
+
+function FindingsCard({ findings }: { findings: Finding[] }) {
+  return (
+    <div className="space-y-3">
+      {findings.map((f, i) => (
+        <div key={i} className="rounded-xl border border-border bg-background/60 p-4 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${SEVERITY_STYLES[f.severity] ?? SEVERITY_STYLES.LOW}`}>
+              {f.severity}
+            </span>
+            {f.severity === "HIGH" && <AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
+            {f.severity === "LOW"  && <ShieldCheck   className="h-3.5 w-3.5 text-blue-500" />}
+          </div>
+          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Clause</p>
+          <p className="text-sm font-medium text-foreground leading-snug">{f.clause}</p>
+          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide mt-1">Risk</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{f.risk}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function DebateClient() {
   const router = useRouter();
@@ -46,16 +76,13 @@ export default function DebateClient() {
   const hasStarted = useRef(false);
 
   useEffect(() => {
-    if (!contractText) {
-      router.replace("/analyze");
-      return;
-    }
+    if (!contractText) { router.replace("/analyze"); return; }
     if (hasStarted.current) return;
     hasStarted.current = true;
     startStream();
-  }, [contractText, lang]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractText]);
 
-  // Auto-scroll each column
   useEffect(() => {
     (Object.keys(scrollRefs.current) as AgentId[]).forEach((id) => {
       const el = scrollRefs.current[id];
@@ -66,47 +93,31 @@ export default function DebateClient() {
   const startStream = async () => {
     setStreamError(null);
     setConnected(false);
-
     try {
-      // Ensure we use the latest lang from state
-      const currentLang = lang;
-      console.log(`[DebateClient] Initiating stream with language: ${currentLang}`);
-      
       const res = await fetch(`${API}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contract_text: contractText, language: currentLang }),
+        body: JSON.stringify({ contract_text: contractText }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Analysis failed" }));
         throw new Error(err.detail ?? "Analysis failed");
       }
-
       setConnected(true);
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-
       while (true) {
         const { done: streamDone, value } = await reader.read();
         if (streamDone) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
-
         for (const line of lines) {
           if (!line.startsWith("data:")) continue;
           const raw = line.slice(5).trim();
           if (!raw) continue;
-
-          try {
-            const event = JSON.parse(raw);
-            handleEvent(event);
-          } catch {
-            // malformed line — skip
-          }
+          try { handleEvent(JSON.parse(raw)); } catch { /* skip malformed */ }
         }
       }
     } catch (err: unknown) {
@@ -116,22 +127,12 @@ export default function DebateClient() {
     }
   };
 
-  const handleEvent = (event: {
-    agent: string;
-    chunk?: string;
-    done?: boolean;
-    error?: string;
-    verdict?: unknown;
-  }) => {
+  const handleEvent = (event: { agent: string; chunk?: string; done?: boolean; error?: string; verdict?: unknown }) => {
     const agent = event.agent as AgentId | "synthesis";
 
     if (agent === "synthesis") {
       setSynthesizing(false);
-      if (event.error) {
-        setAnalysisError(event.error);
-        setStreamError(event.error);
-        return;
-      }
+      if (event.error) { setAnalysisError(event.error); setStreamError(event.error); return; }
       if (event.verdict) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setVerdict(event.verdict as any);
@@ -151,20 +152,14 @@ export default function DebateClient() {
     }
 
     if (!event.done && event.chunk) {
-      setOutputs((prev) => {
-        const updated = { ...prev, [agentId]: prev[agentId] + event.chunk };
-        return updated;
-      });
+      setOutputs((prev) => ({ ...prev, [agentId]: prev[agentId] + event.chunk }));
       setAgentOutputs((prev) => ({ ...prev, [agentId]: prev[agentId] + (event.chunk ?? "") }));
     }
 
     if (event.done) {
       setDone((prev) => {
         const updated = { ...prev, [agentId]: true };
-        // Check if all three are done → synthesis is starting
-        if (updated.lawyer && updated.businessman && updated.regulator) {
-          setSynthesizing(true);
-        }
+        if (updated.lawyer && updated.businessman && updated.regulator) setSynthesizing(true);
         return updated;
       });
       setAgentDone((prev) => ({ ...prev, [agentId]: true }));
@@ -176,9 +171,7 @@ export default function DebateClient() {
     setOutputs({ lawyer: "", businessman: "", regulator: "" });
     setDone({ lawyer: false, businessman: false, regulator: false });
     setAgentErrors({ lawyer: null, businessman: null, regulator: null });
-    setSynthesizing(false);
-    setStreamError(null);
-    setConnected(false);
+    setSynthesizing(false); setStreamError(null); setConnected(false);
     resetAnalysis();
     router.replace("/analyze");
   };
@@ -194,24 +187,20 @@ export default function DebateClient() {
             {lang === "ur" ? "تین مشیروں کی بحث" : "Three-Advisor Debate"}
           </h1>
           <p className={`text-muted-foreground mt-1 text-sm ${lang === "ur" ? "font-urdu" : ""}`}>
-            {synthesizing
-              ? (lang === "ur" ? "فیصلہ تیار ہو رہا ہے…" : "Synthesizing verdict…")
-              : allDone
-              ? (lang === "ur" ? "تجزیہ مکمل" : "Analysis complete")
+            {synthesizing ? (lang === "ur" ? "فیصلہ تیار ہو رہا ہے…" : "Synthesizing verdict…")
+              : allDone ? (lang === "ur" ? "تجزیہ مکمل" : "Analysis complete")
               : (lang === "ur" ? "تجزیہ جاری ہے…" : "Analysis in progress…")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {connected && !allDone && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-70" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
-              </span>
-              {lang === "ur" ? "لائیو" : "Live"}
+        {connected && !allDone && (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-70" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
             </span>
-          )}
-        </div>
+            {lang === "ur" ? "لائیو" : "Live"}
+          </span>
+        )}
       </div>
 
       {/* Stream error */}
@@ -236,10 +225,11 @@ export default function DebateClient() {
           const Icon = agent.icon;
           const isActive = !done[id] && connected;
           const hasError = !!agentErrors[id];
+          const raw = outputs[id];
+          const findings = done[id] ? parseFindings(raw) : null;
 
           return (
             <div key={id} className="flex flex-col rounded-2xl border border-border bg-card shadow-card overflow-hidden">
-              {/* Column header */}
               <div className={`flex items-center gap-3 px-4 py-3 border-b border-border bg-gradient-to-r ${agent.color} text-white`}>
                 <div className={`grid h-9 w-9 place-items-center rounded-xl bg-white/20 ${isActive ? `ring-4 ${agent.ring} animate-glow-pulse` : ""}`}>
                   <Icon className="h-4 w-4" />
@@ -254,20 +244,23 @@ export default function DebateClient() {
                 </div>
               </div>
 
-              {/* Content */}
               <div
                 ref={(el) => { scrollRefs.current[id] = el; }}
-                className={`flex-1 min-h-[300px] max-h-[500px] overflow-y-auto p-6 font-mono text-foreground/80 whitespace-pre-wrap ${lang === 'ur' ? 'text-base leading-[2] font-urdu' : 'text-sm leading-relaxed'}`}
+                className="flex-1 min-h-[300px] max-h-[500px] overflow-y-auto p-4"
               >
                 {hasError ? (
-                  <span className="text-destructive">{lang === "ur" ? "مشیر دستیاب نہیں" : "Agent unavailable"}</span>
-                ) : outputs[id] ? (
-                  <>
-                    {outputs[id]}
+                  <span className="text-destructive text-sm">{lang === "ur" ? "مشیر دستیاب نہیں" : "Agent unavailable"}</span>
+                ) : findings ? (
+                  /* Streaming done — render structured cards */
+                  <FindingsCard findings={findings} />
+                ) : raw ? (
+                  /* Still streaming — show raw text with cursor */
+                  <div className="font-mono text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                    {raw}
                     {isActive && <span className="inline-block w-1.5 h-3.5 align-middle bg-foreground/60 ml-0.5 animate-pulse" />}
-                  </>
+                  </div>
                 ) : (
-                  <span className="text-muted-foreground italic">
+                  <span className="text-muted-foreground italic text-sm">
                     {lang === "ur" ? "انتظار میں…" : "Waiting for response…"}
                   </span>
                 )}

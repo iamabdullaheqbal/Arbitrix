@@ -9,6 +9,22 @@ from sse_starlette.sse import EventSourceResponse
 from config import settings
 from models.schemas import AnalyzeRequest, UploadResponse, VerdictRequest, VerdictResponse
 from services.pdf_extractor import extract_text_from_pdf
+
+
+def _extract_text(file_bytes: bytes, content_type: str, filename: str) -> str:
+    """Extract text from PDF or DOCX bytes."""
+    fname = (filename or "").lower()
+    if content_type == "application/pdf" or fname.endswith(".pdf"):
+        return extract_text_from_pdf(file_bytes)
+    if content_type in (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+    ) or fname.endswith(".docx"):
+        import io
+        from docx import Document
+        doc = Document(io.BytesIO(file_bytes))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip()).strip()
+    raise ValueError(f"Unsupported file type: {content_type}")
 from services.orchestrator import analyze_contract_stream, synthesize_verdict
 
 
@@ -33,21 +49,27 @@ app.add_middleware(
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_contract(file: UploadFile = File(...)):
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
-    
+    allowed_types = {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+    }
+    fname = (file.filename or "").lower()
+    if file.content_type not in allowed_types and not (fname.endswith(".pdf") or fname.endswith(".docx")):
+        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are accepted.")
+
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-    
+
     try:
-        text = extract_text_from_pdf(file_bytes)
+        text = _extract_text(file_bytes, file.content_type or "", file.filename or "")
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Failed to extract PDF text: {exc}")
-    
+        raise HTTPException(status_code=422, detail=f"Failed to extract text: {exc}")
+
     if not text:
-        raise HTTPException(status_code=422, detail="No text could be extracted from the PDF.")
-    
+        raise HTTPException(status_code=422, detail="No text could be extracted from the file.")
+
     return UploadResponse(contract_id=str(uuid.uuid4()), contract_text=text)
 
 

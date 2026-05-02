@@ -106,7 +106,7 @@ export const UploadZone = ({ onAnalyze }: Props) => {
           ref={inputRef}
           type="file"
           className="hidden"
-          accept=".pdf"
+          accept=".pdf,.docx"
           onChange={(e) => handleFiles(e.target.files)}
         />
         {file ? (
