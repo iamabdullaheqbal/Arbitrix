@@ -86,7 +86,9 @@ function buildTurnsFromVerdict(
     lawyer: [], businessman: [], regulator: [],
   };
   for (const f of redFlags) {
-    const a = f.agent as AdvisorId;
+    const a = (["lawyer", "businessman", "regulator"].includes(f.agent)
+      ? f.agent
+      : "lawyer") as AdvisorId;
     if (byAgent[a]) byAgent[a].push(f);
   }
 
@@ -429,7 +431,7 @@ function DebateBubble({
 }: {
   turn: Turn; typing: boolean; isUrdu: boolean;
 }) {
-  const a = ADVISORS[turn.speaker];
+  const a = ADVISORS[turn.speaker] ?? ADVISORS["lawyer"]; // fallback so undefined never crashes
   const isRight = turn.speaker === "businessman";
   const flag = turn.flag ? flagMeta[turn.flag] : null;
   // Use the passed isUrdu flag as primary; fall back to text detection
@@ -496,7 +498,7 @@ function DebateBubble({
 }
 
 function ThinkingBubble({ speaker, isUrdu }: { speaker: AdvisorId; isUrdu: boolean }) {
-  const a = ADVISORS[speaker];
+  const a = ADVISORS[speaker] ?? ADVISORS["lawyer"]; // fallback so undefined never crashes
   const isRight = speaker === "businessman";
   return (
     <div className={`flex ${isRight ? "flex-row-reverse" : "flex-row"} gap-3 animate-fade-in-up`}>

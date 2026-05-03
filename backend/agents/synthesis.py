@@ -27,6 +27,7 @@ Respond ONLY in raw JSON no markdown no backticks:
 Rules:
 - risk_score: number 1-10 following calibration guide STRICTLY
 - red_flags: only include genuine findings — empty array is valid and correct for fair contracts
+- red_flags risk field: PRESERVE the law/section citations from agent findings — do not remove them
 - recommendations: only genuine recommendations — if contract is fair, say it needs no major changes
 - clause fields: always keep original contract text, never translate
 - severity: always HIGH, MEDIUM, or LOW in English

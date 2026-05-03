@@ -62,7 +62,7 @@ def _build_lawyer_prompt(rag_context: str, mode: str) -> str:
             "IMPORTANT: Only flag GENUINE risks. If the contract is fair, say so. Empty findings are valid.\n\n"
             + rag +
             "\nAnalyze this contract honestly. Only flag real problems — do not invent risks.\n"
-            "For each GENUINE finding: exact problematic text, explain in simple terms why it is risky, severity HIGH/MEDIUM/LOW.\n"
+            "For each GENUINE finding: exact problematic text, explain in simple terms why it is risky (mention the Pakistani law or rule), severity HIGH/MEDIUM/LOW.\n"
             'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "fair|minor_issues|significant_issues|high_risk", "justification": "..."}'
         )
     return (
