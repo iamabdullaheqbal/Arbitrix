@@ -273,12 +273,12 @@ export default function DebateClient() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <h1 className={`text-2xl md:text-3xl font-bold leading-tight ${isUr ? "font-urdu" : ""}`}
-            style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "1.6", paddingBottom: "0.1em" } : undefined}>
+          <h1 className={`text-2xl md:text-3xl font-bold ${isUr ? "font-urdu" : "leading-tight"}`}
+            style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "2", display: "block", marginBottom: "0.5rem" } : undefined}>
             {isUr ? "تین مشیروں کی بحث" : "Three-Advisor Debate"}
           </h1>
-          <p className={`text-muted-foreground mt-2 text-sm ${isUr ? "font-urdu" : ""}`}
-            style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "1.6", display: "block" } : undefined}>
+          <p className={`text-muted-foreground text-sm ${isUr ? "font-urdu" : "mt-1"}`}
+            style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "1.8", display: "block" } : undefined}>
             {synthesizing ? (isUr ? "فیصلہ تیار ہو رہا ہے…" : "Synthesizing verdict…")
               : allDone ? (isUr ? "تجزیہ مکمل" : "Analysis complete")
               : (isUr ? "تجزیہ جاری ہے…" : "Analysis in progress…")}
