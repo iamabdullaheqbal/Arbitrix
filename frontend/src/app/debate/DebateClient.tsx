@@ -383,13 +383,12 @@ export default function DebateClient() {
                   <FindingsCard findings={findings} lang={lang} />
                 ) : isActive ? (
                   <StreamingPlaceholder lang={lang} />
+                ) : done[id] && synthesizing ? (
+                  /* All agents done, synthesis running — keep loader visible until navigation */
+                  <StreamingPlaceholder lang={lang} />
                 ) : done[id] && !findings ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-                    <AlertCircle className="h-8 w-8 text-muted-foreground/40" />
-                    <p className="text-sm text-muted-foreground">
-                      {isUr ? "جواب پارس نہیں ہو سکا" : "Could not parse response"}
-                    </p>
-                  </div>
+                  /* Genuine parse failure after synthesis — should rarely appear */
+                  <StreamingPlaceholder lang={lang} />
                 ) : (
                   <StreamingPlaceholder lang={lang} waiting />
                 )}
