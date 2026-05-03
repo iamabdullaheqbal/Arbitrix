@@ -58,7 +58,7 @@ export const Hero = () => {
 
       <div className="container relative py-12 sm:py-16 md:py-28 grid lg:grid-cols-12 gap-10 items-center">
         {/* LEFT — copy */}
-        <div className="lg:col-span-7 text-center lg:text-start w-full overflow-hidden">
+        <div className="lg:col-span-7 text-center lg:text-start w-full min-w-0">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1.5 text-xs font-medium backdrop-blur animate-fade-in-up max-w-[90%]">
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="absolute inline-flex h-full w-full rounded-full bg-accent animate-ping-slow" />
@@ -68,12 +68,12 @@ export const Hero = () => {
             <span className="truncate">{T.hero.eyebrow}</span>
           </div>
 
-          <h1 className={`mt-5 font-bold tracking-tight animate-fade-in-up w-full overflow-hidden ${
+          <h1 className={`mt-5 font-bold tracking-tight animate-fade-in-up w-full ${
             lang === "ur"
-              ? "font-urdu leading-[1.6] text-xl sm:text-3xl md:text-5xl"
+              ? "font-urdu leading-[1.8] text-xl sm:text-3xl md:text-5xl"
               : "leading-[1.05] text-3xl sm:text-4xl md:text-6xl"
           }`}
-            style={lang === "ur" ? { wordBreak: "break-word", overflowWrap: "anywhere" } : undefined}
+            style={lang === "ur" ? { wordBreak: "break-word", overflowWrap: "anywhere", paddingBottom: "0.25em" } : undefined}
           >
             {T.hero.title.split(" — ")[0]}
             {T.hero.title.includes(" — ") && (
@@ -84,8 +84,8 @@ export const Hero = () => {
             )}
           </h1>
 
-          <p className={`mt-4 text-sm sm:text-base md:text-xl text-primary-foreground/80 max-w-full lg:mx-0 mx-auto animate-fade-in-up w-full overflow-hidden ${lang === "ur" ? "font-urdu leading-[1.8] break-words word-break-break-all" : ""}`}
-            style={lang === "ur" ? { wordBreak: "break-word", overflowWrap: "anywhere" } : undefined}>
+          <p className={`mt-4 text-sm sm:text-base md:text-xl text-primary-foreground/80 max-w-full lg:mx-0 mx-auto animate-fade-in-up w-full ${lang === "ur" ? "font-urdu leading-[1.8]" : ""}`}
+            style={lang === "ur" ? { wordBreak: "break-word", overflowWrap: "anywhere", paddingBottom: "0.15em" } : undefined}>
             {T.hero.subtitle}
           </p>
 
