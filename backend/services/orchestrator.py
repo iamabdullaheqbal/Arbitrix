@@ -58,20 +58,21 @@ def _build_lawyer_prompt(rag_context: str, mode: str) -> str:
     if mode == "plain":
         return (
             "You are a friendly lawyer explaining contract risks to a regular person in Pakistan.\n"
-            "Use simple everyday language. Avoid legal jargon. Be warm and approachable.\n\n"
+            "Use simple everyday language. Avoid legal jargon. Be warm and approachable.\n"
+            "IMPORTANT: Only flag GENUINE risks. If the contract is fair, say so. Empty findings are valid.\n\n"
             + rag +
-            "\nFind the 3 most dangerous parts of this contract.\n"
-            "For each: the exact problematic text, explain in simple terms why this is risky, severity HIGH/MEDIUM/LOW.\n"
-            + _JSON_FOOTER
+            "\nAnalyze this contract honestly. Only flag real problems — do not invent risks.\n"
+            "For each GENUINE finding: exact problematic text, explain in simple terms why it is risky, severity HIGH/MEDIUM/LOW.\n"
+            'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "fair|minor_issues|significant_issues|high_risk", "justification": "..."}'
         )
     return (
         "You are a senior Pakistani contract lawyer with 20 years experience.\n"
         "You know Pakistani Contract Act 1872 and Companies Act 2017.\n"
-        "Analyze with precise legal terminology. Cite specific sections of Pakistani law.\n\n"
+        "IMPORTANT: Only flag GENUINE legal risks. If the contract is legally sound, say so. Empty findings are valid and correct.\n\n"
         + rag +
-        "\nFind the 3 most legally dangerous clauses.\n"
-        "For each: exact clause quote, legal risk citing specific law, severity HIGH/MEDIUM/LOW.\n"
-        + _JSON_FOOTER
+        "\nAnalyze this contract objectively. Only flag clauses that are actually illegal, void, or genuinely unfair under Pakistani law.\n"
+        "For each GENUINE finding: exact clause quote, legal risk citing specific Pakistani law, severity HIGH/MEDIUM/LOW.\n"
+        'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "fair|minor_issues|significant_issues|high_risk", "justification": "..."}'
     )
 
 
@@ -80,19 +81,21 @@ def _build_businessman_prompt(rag_context: str, mode: str) -> str:
     if mode == "plain":
         return (
             "You are a friendly Pakistani business mentor helping a small business owner.\n"
-            "Use simple conversational language. Explain money and business risks clearly.\n\n"
+            "Use simple conversational language. Explain money and business risks clearly.\n"
+            "IMPORTANT: Only flag GENUINE commercial risks. If terms are fair, say so. Empty findings are valid.\n\n"
             + rag +
-            "\nFind the 3 most dangerous commercial parts of this contract.\n"
-            "For each: the exact problematic text, explain in plain terms how this could hurt their business, severity HIGH/MEDIUM/LOW.\n"
-            + _JSON_FOOTER
+            "\nAnalyze this contract honestly. Only flag clauses that genuinely harm the signing party.\n"
+            "For each GENUINE finding: exact problematic text, plain explanation of business harm, severity HIGH/MEDIUM/LOW.\n"
+            'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "fair|minor_issues|significant_issues|high_risk", "justification": "..."}'
         )
     return (
         "You are a senior commercial advisor specializing in Pakistani SME contracts.\n"
-        "Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.\n\n"
+        "Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.\n"
+        "IMPORTANT: Only flag GENUINE commercial risks. Standard terms should NOT be flagged. Empty findings are valid and correct.\n\n"
         + rag +
-        "\nFind the 3 most commercially dangerous clauses.\n"
-        "For each: exact clause quote, commercial impact with financial implications, severity HIGH/MEDIUM/LOW.\n"
-        + _JSON_FOOTER
+        "\nAnalyze this contract objectively. Only flag clauses that genuinely harm the signing party commercially.\n"
+        "For each GENUINE finding: exact clause quote, specific commercial impact, severity HIGH/MEDIUM/LOW.\n"
+        'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "fair|minor_issues|significant_issues|high_risk", "justification": "..."}'
     )
 
 
@@ -101,19 +104,21 @@ def _build_regulator_prompt(rag_context: str, mode: str) -> str:
     if mode == "plain":
         return (
             "You are a helpful government officer explaining rules to a regular Pakistani citizen.\n"
-            "Use simple language. Make it easy to understand for someone with no legal background.\n\n"
+            "Use simple language. Make it easy to understand for someone with no legal background.\n"
+            "IMPORTANT: Only flag ACTUAL violations. If the contract follows the law, say so. Empty findings are valid.\n\n"
             + rag +
-            "\nFind the 3 biggest rule violations in this contract.\n"
-            "For each: the exact problematic text, explain in simple terms which Pakistani rule this breaks, severity HIGH/MEDIUM/LOW.\n"
-            + _JSON_FOOTER
+            "\nAnalyze this contract honestly. Only flag clauses that actually break Pakistani rules.\n"
+            "For each GENUINE finding: exact problematic text, which Pakistani rule it breaks, severity HIGH/MEDIUM/LOW.\n"
+            'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "compliant|minor_gaps|significant_issues|non_compliant", "justification": "..."}'
         )
     return (
         "You are a Pakistani regulatory compliance officer.\n"
-        "Analyze against SECP, SBP and PTA regulations. Cite specific regulation names and section numbers.\n\n"
+        "Analyze against SECP, SBP, PTA, and labour regulations. Cite specific regulation names and section numbers.\n"
+        "IMPORTANT: Only flag ACTUAL regulatory violations — not theoretical ones. If the contract is compliant, say so. Empty findings are valid.\n\n"
         + rag +
-        "\nFind the 3 most serious compliance issues.\n"
-        "For each: exact clause quote, specific regulation violated with section number, severity HIGH/MEDIUM/LOW.\n"
-        + _JSON_FOOTER
+        "\nAnalyze this contract objectively. Only flag clauses that actually violate Pakistani regulations.\n"
+        "For each GENUINE finding: exact clause quote, specific regulation violated with section number, severity HIGH/MEDIUM/LOW.\n"
+        'Respond ONLY in raw JSON: {"findings": [...], "overall_assessment": "compliant|minor_gaps|significant_issues|non_compliant", "justification": "..."}'
     )
 
 
@@ -156,8 +161,10 @@ async def _call_gemini_with_retry(
             return await loop.run_in_executor(None, _blocking_stream)
 
         except Exception as exc:
-            is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
-            if is_rate_limit and attempt < max_retries - 1:
+            err_str = str(exc)
+            is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+            is_permanent = "403" in err_str or "PERMISSION_DENIED" in err_str or "API_KEY_INVALID" in err_str
+            if is_rate_limit and not is_permanent and attempt < max_retries - 1:
                 # Parse retryDelay from the error if present, otherwise use exponential backoff
                 import re
                 delay_match = re.search(r"retryDelay.*?(\d+)s", str(exc))
@@ -189,8 +196,15 @@ async def _stream_agent(
         logger.info("Agent %s done. %d chars. Preview: %s", agent_name, len(full_text), full_text[:150])
         await queue.put({"agent": agent_name, "chunk": "", "done": True})
     except Exception as exc:
-        is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
-        err_msg = "Rate limit reached — please retry in a moment." if is_rate_limit else str(exc)
+        err_str = str(exc)
+        is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+        is_permission = "403" in err_str or "PERMISSION_DENIED" in err_str
+        if is_permission:
+            err_msg = "API key denied — please check your Gemini API key."
+        elif is_rate_limit:
+            err_msg = "Rate limit reached — please retry in a moment."
+        else:
+            err_msg = err_str
         logger.error("Agent %s failed: %s", agent_name, exc)
         await queue.put({"agent": agent_name, "chunk": "", "done": True, "error": err_msg})
     return full_text
@@ -299,6 +313,7 @@ async def analyze_contract_stream(
             businessman=agent_buffers["businessman"],
             regulator=agent_buffers["regulator"],
         )
+        verdict_en = _validate_risk_score(verdict_en)
         logger.info("Synthesis done. risk_score=%s flags=%d",
                     verdict_en.get("risk_score"), len(verdict_en.get("red_flags", [])))
 
@@ -312,6 +327,32 @@ async def analyze_contract_stream(
         }
     except Exception as exc:
         yield {"agent": "synthesis", "chunk": "", "done": True, "error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Score validation — prevents hallucinated high scores
+# ---------------------------------------------------------------------------
+
+def _validate_risk_score(verdict: dict) -> dict:
+    findings = verdict.get("red_flags", [])
+    high_count   = sum(1 for f in findings if f.get("severity") == "HIGH")
+    medium_count = sum(1 for f in findings if f.get("severity") == "MEDIUM")
+    total        = len(findings)
+    score        = verdict.get("risk_score", 5)
+
+    if total == 0 and score > 3:
+        verdict["risk_score"] = 1.5
+    elif high_count == 0 and medium_count == 0 and score > 4:
+        verdict["risk_score"] = min(score, 3.5)
+    elif high_count == 0 and score > 6:
+        verdict["risk_score"] = min(score, 5.5)
+    elif high_count <= 1 and score > 7:
+        verdict["risk_score"] = min(score, 6.5)
+
+    if verdict["risk_score"] != score:
+        logger.info("Score adjusted: %.1f → %.1f (high=%d med=%d total=%d)",
+                    score, verdict["risk_score"], high_count, medium_count, total)
+    return verdict
 
 
 # ---------------------------------------------------------------------------
