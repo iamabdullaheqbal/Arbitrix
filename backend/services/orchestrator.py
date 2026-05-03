@@ -1,9 +1,11 @@
 import asyncio
 import json
 import logging
+import random
 from typing import AsyncGenerator
 
-from groq import Groq
+from google import genai
+from google.genai import types
 
 from agents.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from config import settings
@@ -13,8 +15,8 @@ logger = logging.getLogger(__name__)
 TEMPERATURE = 0.3
 
 
-def _make_client() -> Groq:
-    return Groq(api_key=settings.groq_api_key)
+def _make_gemini() -> genai.Client:
+    return genai.Client(api_key=settings.gemini_api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -30,50 +32,33 @@ async def _fetch_rag_context(contract_text: str) -> tuple[str, str, str]:
             retrieve(f"commercial payment liability unfair terms Pakistani business {snippet}", top_k=5),
             retrieve(f"SECP SBP regulatory compliance Pakistani law {snippet}", top_k=5),
         )
-        # Log RAG results so we can verify chunks are coming from the DB
         logger.info(
-            "RAG context fetched — lawyer: %d chunks, businessman: %d chunks, regulator: %d chunks",
+            "RAG fetched — lawyer: %d, businessman: %d, regulator: %d chunks",
             len(lawyer_chunks), len(biz_chunks), len(reg_chunks),
         )
-        if lawyer_chunks:
-            logger.info("RAG sample (lawyer): source=%s similarity=%.2f",
-                        lawyer_chunks[0]["source_file"], lawyer_chunks[0]["similarity"])
         return format_chunks(lawyer_chunks), format_chunks(biz_chunks), format_chunks(reg_chunks)
     except Exception as exc:
-        logger.warning("RAG context fetch failed — running without RAG: %s", exc)
+        logger.warning("RAG failed — running without context: %s", exc)
         return ("", "", "")
 
 
 # ---------------------------------------------------------------------------
-# Mode-aware prompt builders
+# Prompt builders
 # ---------------------------------------------------------------------------
 
 _JSON_FOOTER = (
     'Respond ONLY in raw JSON no markdown no backticks:\n'
-    '{{"findings": [{{"clause": "...", "risk": "...", "severity": "HIGH"}}]}}'
+    '{"findings": [{"clause": "...", "risk": "...", "severity": "HIGH"}]}'
 )
-
 _RAG_BLOCK = "RELEVANT KNOWLEDGE FROM YOUR DATABASE:\n{ctx}\n"
 
-# Language instruction injected into every prompt when Urdu is selected
-_URDU_INSTRUCTION = (
-    "\nIMPORTANT: Write ALL your analysis in Urdu (اردو). "
-    "Keep legal terms, law names, section numbers, and clause quotes in their original language. "
-    "Write all explanations and risk descriptions in Urdu script.\n"
-)
 
-
-def _build_lawyer_prompt(rag_context: str, mode: str, language: str = "english") -> str:
-    ctx = rag_context or "No relevant precedents found."
-    rag = _RAG_BLOCK.format(ctx=ctx)
-    lang_instr = _URDU_INSTRUCTION if language == "urdu" else ""
+def _build_lawyer_prompt(rag_context: str, mode: str) -> str:
+    rag = _RAG_BLOCK.format(ctx=rag_context or "No relevant precedents found.")
     if mode == "plain":
         return (
             "You are a friendly lawyer explaining contract risks to a regular person in Pakistan.\n"
-            "Use simple everyday language. Avoid legal jargon.\n"
-            "Explain risks as if talking to a friend who has never seen a contract before.\n"
-            "Use analogies if helpful. Be warm and approachable.\n"
-            + lang_instr + "\n"
+            "Use simple everyday language. Avoid legal jargon. Be warm and approachable.\n\n"
             + rag +
             "\nFind the 3 most dangerous parts of this contract.\n"
             "For each: the exact problematic text, explain in simple terms why this is risky, severity HIGH/MEDIUM/LOW.\n"
@@ -82,8 +67,7 @@ def _build_lawyer_prompt(rag_context: str, mode: str, language: str = "english")
     return (
         "You are a senior Pakistani contract lawyer with 20 years experience.\n"
         "You know Pakistani Contract Act 1872 and Companies Act 2017.\n"
-        "Analyze with precise legal terminology. Cite specific sections of Pakistani law where applicable.\n"
-        + lang_instr + "\n"
+        "Analyze with precise legal terminology. Cite specific sections of Pakistani law.\n\n"
         + rag +
         "\nFind the 3 most legally dangerous clauses.\n"
         "For each: exact clause quote, legal risk citing specific law, severity HIGH/MEDIUM/LOW.\n"
@@ -91,43 +75,33 @@ def _build_lawyer_prompt(rag_context: str, mode: str, language: str = "english")
     )
 
 
-def _build_businessman_prompt(rag_context: str, mode: str, language: str = "english") -> str:
-    ctx = rag_context or "No relevant precedents found."
-    rag = _RAG_BLOCK.format(ctx=ctx)
-    lang_instr = _URDU_INSTRUCTION if language == "urdu" else ""
+def _build_businessman_prompt(rag_context: str, mode: str) -> str:
+    rag = _RAG_BLOCK.format(ctx=rag_context or "No relevant precedents found.")
     if mode == "plain":
         return (
             "You are a friendly Pakistani business mentor helping a small business owner.\n"
-            "Use simple conversational language. Explain money and business risks clearly.\n"
-            "Think of it as advice from an experienced uncle who runs a business.\n"
-            + lang_instr + "\n"
+            "Use simple conversational language. Explain money and business risks clearly.\n\n"
             + rag +
             "\nFind the 3 most dangerous commercial parts of this contract.\n"
-            "For each: the exact problematic text, explain in plain terms how this could hurt their business or money, severity HIGH/MEDIUM/LOW.\n"
+            "For each: the exact problematic text, explain in plain terms how this could hurt their business, severity HIGH/MEDIUM/LOW.\n"
             + _JSON_FOOTER
         )
     return (
         "You are a senior commercial advisor specializing in Pakistani SME contracts.\n"
-        "Analyze with formal business terminology. Reference industry standards and commercial best practices.\n"
-        "Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.\n"
-        + lang_instr + "\n"
+        "Focus on payment terms, liability caps, IP ownership, one-sided exit clauses.\n\n"
         + rag +
         "\nFind the 3 most commercially dangerous clauses.\n"
-        "For each: exact clause quote, commercial impact with specific financial implications, severity HIGH/MEDIUM/LOW.\n"
+        "For each: exact clause quote, commercial impact with financial implications, severity HIGH/MEDIUM/LOW.\n"
         + _JSON_FOOTER
     )
 
 
-def _build_regulator_prompt(rag_context: str, mode: str, language: str = "english") -> str:
-    ctx = rag_context or "No relevant precedents found."
-    rag = _RAG_BLOCK.format(ctx=ctx)
-    lang_instr = _URDU_INSTRUCTION if language == "urdu" else ""
+def _build_regulator_prompt(rag_context: str, mode: str) -> str:
+    rag = _RAG_BLOCK.format(ctx=rag_context or "No relevant precedents found.")
     if mode == "plain":
         return (
             "You are a helpful government officer explaining rules to a regular Pakistani citizen.\n"
-            "Use simple language. Explain which rules this contract might break.\n"
-            "Make it easy to understand for someone with no legal background.\n"
-            + lang_instr + "\n"
+            "Use simple language. Make it easy to understand for someone with no legal background.\n\n"
             + rag +
             "\nFind the 3 biggest rule violations in this contract.\n"
             "For each: the exact problematic text, explain in simple terms which Pakistani rule this breaks, severity HIGH/MEDIUM/LOW.\n"
@@ -135,8 +109,7 @@ def _build_regulator_prompt(rag_context: str, mode: str, language: str = "englis
         )
     return (
         "You are a Pakistani regulatory compliance officer.\n"
-        "Analyze against SECP, SBP and PTA regulations precisely. Cite specific regulation names and section numbers.\n"
-        + lang_instr + "\n"
+        "Analyze against SECP, SBP and PTA regulations. Cite specific regulation names and section numbers.\n\n"
         + rag +
         "\nFind the 3 most serious compliance issues.\n"
         "For each: exact clause quote, specific regulation violated with section number, severity HIGH/MEDIUM/LOW.\n"
@@ -145,48 +118,45 @@ def _build_regulator_prompt(rag_context: str, mode: str, language: str = "englis
 
 
 # ---------------------------------------------------------------------------
-# Agent streaming — with retry + exponential backoff
+# Gemini call with retry + exponential backoff
 # ---------------------------------------------------------------------------
 
-async def _call_groq_with_retry(
-    client: Groq,
+async def _call_gemini_with_retry(
     system_prompt: str,
     contract_text: str,
+    max_tokens: int = 2000,
     max_retries: int = 3,
 ) -> list[str]:
-    """Call Groq with exponential backoff on rate limit errors."""
-    import random
     for attempt in range(max_retries):
         try:
+            client = _make_gemini()
             loop = asyncio.get_event_loop()
             _system = system_prompt
             _content = contract_text
-            _model = settings.groq_model
+            _model = settings.gemini_model
+            _max_tok = max_tokens
 
-            def _blocking_call():
+            def _blocking_stream() -> list[str]:
                 chunks = []
-                stream = client.chat.completions.create(
+                for chunk in client.models.generate_content_stream(
                     model=_model,
-                    messages=[
-                        {"role": "system", "content": _system},
-                        {"role": "user", "content": _content},
-                    ],
-                    temperature=TEMPERATURE,
-                    max_tokens=2000,
-                    stream=True,
-                )
-                for chunk in stream:
-                    text = chunk.choices[0].delta.content or ""
-                    if text:
-                        chunks.append(text)
-                logger.info("Groq stream: %d chunks, %d chars",
+                    contents=_content,
+                    config=types.GenerateContentConfig(
+                        system_instruction=_system,
+                        temperature=TEMPERATURE,
+                        max_output_tokens=_max_tok,
+                    ),
+                ):
+                    if chunk.text:
+                        chunks.append(chunk.text)
+                logger.info("Gemini stream: %d chunks, %d chars",
                             len(chunks), sum(len(c) for c in chunks))
                 return chunks
 
-            return await loop.run_in_executor(None, _blocking_call)
+            return await loop.run_in_executor(None, _blocking_stream)
 
         except Exception as exc:
-            is_rate_limit = "429" in str(exc) or "rate_limit" in str(exc).lower()
+            is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
             if is_rate_limit and attempt < max_retries - 1:
                 wait = (2 ** attempt) + random.uniform(0, 1)
                 logger.warning("Rate limit (attempt %d/%d) — waiting %.1fs", attempt + 1, max_retries, wait)
@@ -194,8 +164,12 @@ async def _call_groq_with_retry(
             else:
                 raise
 
-    raise RuntimeError("Max retries exceeded for Groq API call")
+    raise RuntimeError("Max retries exceeded for Gemini API call")
 
+
+# ---------------------------------------------------------------------------
+# Agent streaming
+# ---------------------------------------------------------------------------
 
 async def _stream_agent(
     agent_name: str,
@@ -205,30 +179,25 @@ async def _stream_agent(
 ) -> str:
     full_text = ""
     try:
-        client = _make_client()
-        chunks = await _call_groq_with_retry(client, system_prompt, contract_text)
+        chunks = await _call_gemini_with_retry(system_prompt, contract_text)
         for text in chunks:
-            if text:
-                full_text += text
-                await queue.put({"agent": agent_name, "chunk": text, "done": False})
-        logger.info("Agent %s completed. %d chars. Preview: %s",
-                    agent_name, len(full_text), full_text[:200])
+            full_text += text
+            await queue.put({"agent": agent_name, "chunk": text, "done": False})
+        logger.info("Agent %s done. %d chars. Preview: %s", agent_name, len(full_text), full_text[:150])
         await queue.put({"agent": agent_name, "chunk": "", "done": True})
     except Exception as exc:
-        is_rate_limit = "429" in str(exc) or "rate_limit" in str(exc).lower()
+        is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
         err_msg = "Rate limit reached — please retry in a moment." if is_rate_limit else str(exc)
         logger.error("Agent %s failed: %s", agent_name, exc)
         await queue.put({"agent": agent_name, "chunk": "", "done": True, "error": err_msg})
     return full_text
 
 
+# ---------------------------------------------------------------------------
+# Urdu translation via Mistral
+# ---------------------------------------------------------------------------
+
 async def _translate_verdict_to_urdu(verdict: dict) -> dict:
-    """
-    Translate English verdict fields to Urdu using Mistral.
-    - Translates: each finding's risk, recommendations, summary_english → summary_urdu
-    - Keeps: clause quotes, severity values, agent names, risk_score, JSON structure
-    Falls back to original verdict on any failure.
-    """
     if not settings.mistral_api_key:
         logger.warning("MISTRAL_API_KEY not set — skipping Urdu translation")
         return verdict
@@ -240,15 +209,11 @@ async def _translate_verdict_to_urdu(verdict: dict) -> dict:
         "- Keep legal terms like SECP, SBP, Contract Act, section numbers in English\n"
         "- Translate all explanations and descriptions to Urdu script\n"
         "- Keep the exact same JSON structure — do not add or remove any fields\n"
-        "- Translate ONLY these fields:\n"
-        "  - Each finding's 'risk' field value\n"
-        "  - Each item in 'recommendations' array\n"
-        "  - 'summary_english' field value — put translation in 'summary_urdu' field\n"
+        "- Translate ONLY: each finding's 'risk' field, 'recommendations' items, "
+        "and summary_english → summary_urdu\n"
         "- Keep 'clause' fields in original English — they are contract quotes\n"
-        "- Keep 'severity' values as HIGH MEDIUM LOW in English\n"
-        "- Keep 'agent' values in English\n"
-        "- Keep 'risk_score' as number unchanged\n"
-        "- Respond ONLY in raw JSON — no markdown, no backticks, no explanation\n\n"
+        "- Keep 'severity' as HIGH MEDIUM LOW, 'agent' values, and 'risk_score' unchanged\n"
+        "- Respond ONLY in raw JSON — no markdown, no backticks\n\n"
         f"Input JSON:\n{json.dumps(verdict, ensure_ascii=False, indent=2)}"
     )
 
@@ -267,36 +232,38 @@ async def _translate_verdict_to_urdu(verdict: dict) -> dict:
             return response.choices[0].message.content.strip()
 
         raw = await loop.run_in_executor(None, _blocking_call)
-
         if raw.startswith("```"):
             lines = raw.split("\n")
             raw = "\n".join(lines[1:-1]) if len(lines) > 2 else raw
 
         translated = json.loads(raw)
-
-        # Safety: ensure all required keys are present
         for key in ("risk_score", "red_flags", "recommendations", "summary_english", "summary_urdu"):
             if key not in translated:
                 translated[key] = verdict.get(key)
-
         return translated
 
     except json.JSONDecodeError as exc:
-        logger.warning("Translation JSON parse failed: %s — returning English verdict", exc)
+        logger.warning("Translation JSON parse failed: %s — returning English", exc)
         return verdict
     except Exception as exc:
-        logger.warning("Urdu translation failed: %s — returning English verdict", exc)
+        logger.warning("Urdu translation failed: %s — returning English", exc)
         return verdict
 
 
-async def analyze_contract_stream(contract_text: str, mode: str = "technical", language: str = "english") -> AsyncGenerator[dict, None]:
+# ---------------------------------------------------------------------------
+# Main analysis stream
+# ---------------------------------------------------------------------------
+
+async def analyze_contract_stream(
+    contract_text: str,
+    mode: str = "technical",
+    language: str = "english",
+) -> AsyncGenerator[dict, None]:
     queue: asyncio.Queue = asyncio.Queue()
 
     lawyer_ctx, biz_ctx, reg_ctx = await _fetch_rag_context(contract_text)
-
     logger.info("Starting analysis — mode=%s", mode)
 
-    # Agents always run in English; translation happens after synthesis
     agents = [
         ("lawyer",      _build_lawyer_prompt(lawyer_ctx, mode)),
         ("businessman", _build_businessman_prompt(biz_ctx, mode)),
@@ -305,7 +272,7 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
 
     agent_buffers: dict[str, str] = {name: "" for name, _ in agents}
 
-    # Stagger task creation by 1s to avoid simultaneous rate-limit hits
+    # Stagger by 1s to spread rate-limit pressure
     tasks = []
     for i, (name, prompt) in enumerate(agents):
         if i > 0:
@@ -329,28 +296,26 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
             businessman=agent_buffers["businessman"],
             regulator=agent_buffers["regulator"],
         )
-        logger.info("Synthesis complete. risk_score=%s flags=%d",
+        logger.info("Synthesis done. risk_score=%s flags=%d",
                     verdict_en.get("risk_score"), len(verdict_en.get("red_flags", [])))
 
-        # Always translate to Urdu in the same call — cache both on frontend
         verdict_ur = await _translate_verdict_to_urdu(verdict_en)
 
         yield {
             "agent": "synthesis",
             "chunk": "",
             "done": True,
-            "verdict": {
-                "english": verdict_en,
-                "urdu": verdict_ur,
-            },
+            "verdict": {"english": verdict_en, "urdu": verdict_ur},
         }
     except Exception as exc:
         yield {"agent": "synthesis", "chunk": "", "done": True, "error": str(exc)}
 
 
-async def synthesize_verdict(lawyer: str, businessman: str, regulator: str) -> dict:
-    client = _make_client()
+# ---------------------------------------------------------------------------
+# Synthesis (Gemini)
+# ---------------------------------------------------------------------------
 
+async def synthesize_verdict(lawyer: str, businessman: str, regulator: str) -> dict:
     prompt = (
         f"LAWYER ANALYSIS:\n{lawyer}\n\n"
         f"BUSINESSMAN ANALYSIS:\n{businessman}\n\n"
@@ -358,21 +323,12 @@ async def synthesize_verdict(lawyer: str, businessman: str, regulator: str) -> d
         "Synthesize the above into a final verdict."
     )
 
-    loop = asyncio.get_event_loop()
-
-    def _blocking_call():
-        response = client.chat.completions.create(
-            model=settings.groq_model,
-            messages=[
-                {"role": "system", "content": SYNTHESIS_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=3000,
-        )
-        return response.choices[0].message.content.strip()
-
-    raw_text = await loop.run_in_executor(None, _blocking_call)
+    chunks = await _call_gemini_with_retry(
+        system_prompt=SYNTHESIS_SYSTEM_PROMPT,
+        contract_text=prompt,
+        max_tokens=3000,
+    )
+    raw_text = "".join(chunks).strip()
 
     if raw_text.startswith("```"):
         lines = raw_text.split("\n")
