@@ -40,7 +40,7 @@ app = FastAPI(title="Arbitrix API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "https://arbitrix-legal.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
