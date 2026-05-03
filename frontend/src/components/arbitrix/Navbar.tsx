@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useApp } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
 import { usePathname } from "next/navigation";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export const Navbar = () => {
   const { lang, setLang, T } = useApp();
@@ -39,6 +39,7 @@ export const Navbar = () => {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-[280px] p-0">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                 <div className="flex flex-col h-full">
                   <div className="p-6 border-b border-border">
                     <Link href="/" className="flex items-center gap-2.5 font-bold text-lg tracking-tight">
