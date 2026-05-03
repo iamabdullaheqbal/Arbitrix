@@ -138,8 +138,8 @@ export default function VerdictClient() {
                 {isUr ? "آپ کے معاہدے کا فیصلہ" : "Your contract verdict"}
               </div>
               <div
-                className={`text-3xl md:text-5xl font-bold mt-1 ${isUr ? "font-urdu" : ""}`}
-                style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "1.4" } : undefined}
+                className={`text-2xl sm:text-3xl md:text-5xl font-bold mt-1 break-words ${isUr ? "font-urdu" : ""}`}
+                style={isUr ? { fontFamily: "'Noto Nastaliq Urdu', serif", lineHeight: "1.5" } : undefined}
               >
                 {tierLabel}
               </div>

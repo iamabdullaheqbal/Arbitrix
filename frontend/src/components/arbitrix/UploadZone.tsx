@@ -88,7 +88,7 @@ export const UploadZone = ({ onAnalyze }: Props) => {
         <span className="inline-block rounded-full bg-accent/15 px-3 py-1 text-xs font-semibold text-accent-foreground uppercase tracking-wider">
           {lang === "ur" ? "مرحلہ ۲" : "Step 2"}
         </span>
-        <h2 className={`mt-3 text-2xl md:text-3xl font-bold tracking-tight ${lang === "ur" ? "font-urdu" : ""}`}>{T.upload.title}</h2>
+        <h2 className={`mt-3 text-xl sm:text-2xl md:text-3xl font-bold tracking-tight break-words ${lang === "ur" ? "font-urdu leading-[1.5]" : ""}`}>{T.upload.title}</h2>
         <p className={`mt-2 text-muted-foreground ${lang === "ur" ? "font-urdu" : ""}`}>{T.upload.subtitle}</p>
       </div>
 

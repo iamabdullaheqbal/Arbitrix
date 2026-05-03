@@ -16,7 +16,7 @@ export const HowItWorks = () => {
         <span className="inline-block rounded-full bg-primary/5 border border-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
           {lang === "ur" ? "طریقہ کار" : "Process"}
         </span>
-        <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu leading-[1.4]" : ""}`}>{T.how.title}</h2>
+        <h2 className={`mt-4 text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight break-words ${lang === "ur" ? "font-urdu leading-[1.5]" : ""}`}>{T.how.title}</h2>
         <p className={`mt-3 text-muted-foreground ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>{T.how.subtitle}</p>
       </div>
 

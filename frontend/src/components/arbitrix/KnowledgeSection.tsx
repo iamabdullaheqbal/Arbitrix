@@ -36,7 +36,7 @@ export const KnowledgeSection = () => {
             <BookOpen className="h-4 w-4" />
             {lang === "ur" ? "آربیٹرکس کے بارے میں" : "Knowledge Base"}
           </div>
-          <h2 className={`text-3xl md:text-4xl font-bold ${lang === "ur" ? "font-urdu" : ""}`}>
+          <h2 className={`text-2xl sm:text-3xl md:text-4xl font-bold break-words ${lang === "ur" ? "font-urdu leading-[1.5]" : ""}`}>
             {lang === "ur" ? "ہماری ذہانت کی بنیاد" : "The Intelligence Behind Arbitrix"}
           </h2>
           <p className={`mt-4 text-muted-foreground max-w-2xl mx-auto ${lang === "ur" ? "font-urdu" : ""}`}>

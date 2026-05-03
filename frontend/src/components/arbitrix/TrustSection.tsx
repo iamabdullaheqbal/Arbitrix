@@ -60,7 +60,7 @@ export const TrustSection = () => {
             <Sparkles className="h-3 w-3 text-accent" />
             {lang === "ur" ? "اعتماد" : "Why trust Arbitrix"}
           </span>
-          <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu leading-[1.4]" : "leading-tight"}`}>
+          <h2 className={`mt-4 text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight break-words ${lang === "ur" ? "font-urdu leading-[1.5]" : "leading-tight"}`}>
             {lang === "ur" ? "قانونی مہارت اور جدید ٹیکنالوجی کا شاہکار" : "Built like a lawyer thinks. Engineered for clarity."}
           </h2>
           <p className={`mt-3 text-muted-foreground ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>
@@ -136,7 +136,7 @@ export const TrustSection = () => {
                 <ShieldCheck className="h-7 w-7 text-accent" />
               </div>
               <div>
-                <div className={`text-lg md:text-xl font-semibold ${lang === "ur" ? "font-urdu" : ""}`}>
+                <div className={`text-base sm:text-lg md:text-xl font-semibold break-words ${lang === "ur" ? "font-urdu leading-[1.6]" : ""}`}>
                   {lang === "ur" ? "نہ ڈیٹا فروخت، نہ تربیت پر استعمال" : "Your contracts are never sold or used to train models."}
                 </div>
                 <div className="text-sm text-primary-foreground/70 mt-0.5">

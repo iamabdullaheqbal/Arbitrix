@@ -33,7 +33,7 @@ export const ContractTypeSelector = () => {
           <span className="h-1.5 w-1.5 rounded-full bg-accent animate-glow-pulse" />
           {lang === "ur" ? "مرحلہ ۱" : "Step 01"}
         </span>
-        <h2 className={`mt-4 text-3xl md:text-4xl font-bold tracking-tight ${lang === "ur" ? "font-urdu" : ""}`}>{T.type.title}</h2>
+        <h2 className={`mt-4 text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight break-words ${lang === "ur" ? "font-urdu leading-[1.5]" : ""}`}>{T.type.title}</h2>
         <p className={`mt-2 text-muted-foreground max-w-xl mx-auto ${lang === "ur" ? "font-urdu" : ""}`}>{T.type.subtitle}</p>
       </div>
 

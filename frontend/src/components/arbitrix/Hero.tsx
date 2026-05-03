@@ -46,7 +46,7 @@ export const Hero = () => {
     "Companies Act 2017", "Income Tax Ord. 2001",
   ];
   return (
-    <section id="top" className="relative overflow-hidden gradient-hero text-primary-foreground">
+    <section id="top" className="relative overflow-hidden gradient-hero text-primary-foreground mx-2 sm:mx-4 md:mx-0 rounded-3xl md:rounded-none mt-2 md:mt-0">
       {/* Grid + dots */}
       <div className="absolute inset-0 opacity-[0.07] [background-image:radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] [background-size:24px_24px]" />
       <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(white_1px,transparent_1px),linear-gradient(90deg,white_1px,transparent_1px)] [background-size:80px_80px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
@@ -56,19 +56,25 @@ export const Hero = () => {
       <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-primary-glow/40 blur-3xl animate-blob" style={{ animationDelay: "3s" }} />
       <div className="absolute top-1/3 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/10 blur-3xl animate-blob" style={{ animationDelay: "6s" }} />
 
-      <div className="container relative py-20 md:py-28 grid lg:grid-cols-12 gap-10 items-center">
+      <div className="container relative py-12 sm:py-16 md:py-28 grid lg:grid-cols-12 gap-10 items-center">
         {/* LEFT — copy */}
-        <div className="lg:col-span-7 text-center lg:text-start">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-4 py-1.5 text-xs font-medium backdrop-blur animate-fade-in-up">
-            <span className="relative flex h-2 w-2">
+        <div className="lg:col-span-7 text-center lg:text-start w-full overflow-hidden">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1.5 text-xs font-medium backdrop-blur animate-fade-in-up max-w-[90%]">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className="absolute inline-flex h-full w-full rounded-full bg-accent animate-ping-slow" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
             </span>
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
-            {T.hero.eyebrow}
+            <Sparkles className="h-3.5 w-3.5 text-accent shrink-0" />
+            <span className="truncate">{T.hero.eyebrow}</span>
           </div>
 
-          <h1 className={`mt-6 text-4xl md:text-6xl font-bold tracking-tight animate-fade-in-up ${lang === "ur" ? "font-urdu leading-[1.35]" : "leading-[1.05]"}`}>
+          <h1 className={`mt-5 font-bold tracking-tight animate-fade-in-up w-full overflow-hidden ${
+            lang === "ur"
+              ? "font-urdu leading-[1.6] text-xl sm:text-3xl md:text-5xl"
+              : "leading-[1.05] text-3xl sm:text-4xl md:text-6xl"
+          }`}
+            style={lang === "ur" ? { wordBreak: "break-word", overflowWrap: "anywhere" } : undefined}
+          >
             {T.hero.title.split(" — ")[0]}
             {T.hero.title.includes(" — ") && (
               <>
@@ -78,15 +84,16 @@ export const Hero = () => {
             )}
           </h1>
 
-          <p className={`mt-6 text-lg md:text-xl text-primary-foreground/80 max-w-2xl lg:mx-0 mx-auto animate-fade-in-up ${lang === "ur" ? "font-urdu leading-relaxed" : ""}`}>
+          <p className={`mt-4 text-sm sm:text-base md:text-xl text-primary-foreground/80 max-w-full lg:mx-0 mx-auto animate-fade-in-up w-full overflow-hidden ${lang === "ur" ? "font-urdu leading-[1.8] break-words word-break-break-all" : ""}`}
+            style={lang === "ur" ? { wordBreak: "break-word", overflowWrap: "anywhere" } : undefined}>
             {T.hero.subtitle}
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center justify-center lg:justify-start gap-4 animate-fade-in-up">
+          <div className="mt-6 sm:mt-8 flex flex-row flex-wrap items-center justify-center lg:justify-start gap-3 animate-fade-in-up">
             <Button
-              size="lg"
+              size="sm"
               disabled={ctaState === "loading"}
-              className="gradient-gold text-accent-foreground hover:opacity-95 shadow-gold h-12 px-7 text-base font-semibold relative overflow-hidden group min-w-[220px] disabled:opacity-100"
+              className="gradient-gold text-accent-foreground hover:opacity-95 shadow-gold h-9 sm:h-11 px-5 sm:px-6 text-sm font-semibold relative overflow-hidden group disabled:opacity-100 rounded-full"
               onClick={handleStart}
             >
               {/* Idle */}
@@ -126,17 +133,17 @@ export const Hero = () => {
               )}
             </Button>
             <div className="flex items-center gap-2 text-sm text-primary-foreground/70">
-              <ShieldCheck className="h-4 w-4 text-accent" />
-              {lang === "ur" ? "آپ کی فائلیں محفوظ رہتی ہیں" : "Your files stay private"}
+              <ShieldCheck className="h-4 w-4 text-accent shrink-0" />
+              <span className={lang === "ur" ? "font-urdu" : ""}>{lang === "ur" ? "آپ کی فائلیں محفوظ رہتی ہیں" : "Your files stay private"}</span>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="mt-10 grid grid-cols-3 gap-3 max-w-md lg:max-w-lg mx-auto lg:mx-0 stagger">
+          <div className="mt-8 grid grid-cols-3 gap-2 max-w-xs sm:max-w-md lg:max-w-lg mx-auto lg:mx-0 stagger px-1 sm:px-0">
             {stats.map((s) => (
-              <div key={s.k} className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/5 backdrop-blur px-3 py-3 text-center">
-                <div className="text-2xl md:text-3xl font-bold text-accent">{s.v}</div>
-                <div className={`text-[11px] md:text-xs text-primary-foreground/70 mt-0.5 ${lang === "ur" ? "font-urdu" : ""}`}>{s.k}</div>
+              <div key={s.k} className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/5 backdrop-blur px-1.5 sm:px-3 py-2.5 text-center">
+                <div className="text-lg sm:text-2xl md:text-3xl font-bold text-accent">{s.v}</div>
+                <div className={`text-[9px] sm:text-[11px] md:text-xs text-primary-foreground/70 mt-0.5 leading-tight ${lang === "ur" ? "font-urdu" : ""}`}>{s.k}</div>
               </div>
             ))}
           </div>
@@ -202,11 +209,12 @@ export const Hero = () => {
 
       {/* Trust marquee */}
       <div className="relative border-t border-primary-foreground/10 bg-primary/30 backdrop-blur-sm">
-        <div className="container py-4 flex items-center gap-6 overflow-hidden">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-primary-foreground/60 shrink-0">
+        <div className="container py-3 flex items-center gap-3 sm:gap-6 overflow-hidden">
+          <div className="hidden sm:flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-primary-foreground/60 shrink-0">
             <Lock className="h-3.5 w-3.5 text-accent" />
             {lang === "ur" ? "پاکستانی قانون پر مبنی" : "Grounded in Pakistani law"}
           </div>
+          <Lock className="sm:hidden h-3.5 w-3.5 text-accent shrink-0" />
           <div className="relative flex-1 overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_15%,black_85%,transparent)]">
             <div className="flex gap-10 animate-marquee whitespace-nowrap w-max">
               {[...trust, ...trust].map((label, i) => (
