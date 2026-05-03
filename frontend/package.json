@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
@@ -39,6 +40,7 @@
     "@tanstack/react-query": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "cmdk": "^1.1.1",
     "date-fns": "latest",
     "embla-carousel-react": "latest",
     "framer-motion": "latest",
@@ -49,9 +51,12 @@
     "react": "19.2.4",
     "react-day-picker": "latest",
     "react-dom": "19.2.4",
+    "react-hook-form": "^7.75.0",
+    "react-resizable-panels": "^4.11.0",
     "recharts": "latest",
     "sonner": "latest",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
