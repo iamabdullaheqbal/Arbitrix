@@ -158,8 +158,11 @@ async def _call_gemini_with_retry(
         except Exception as exc:
             is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
             if is_rate_limit and attempt < max_retries - 1:
-                wait = (2 ** attempt) + random.uniform(0, 1)
-                logger.warning("Rate limit (attempt %d/%d) — waiting %.1fs", attempt + 1, max_retries, wait)
+                # Parse retryDelay from the error if present, otherwise use exponential backoff
+                import re
+                delay_match = re.search(r"retryDelay.*?(\d+)s", str(exc))
+                wait = int(delay_match.group(1)) + 2 if delay_match else (2 ** attempt) * 15 + random.uniform(0, 3)
+                logger.warning("Rate limit (attempt %d/%d) — waiting %.0fs", attempt + 1, max_retries, wait)
                 await asyncio.sleep(wait)
             else:
                 raise
