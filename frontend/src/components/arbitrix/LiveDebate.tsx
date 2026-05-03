@@ -146,7 +146,12 @@ function buildTurnsFromVerdict(
 }
 
 export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props) => {
-  const { lang, verdict, contractText } = useApp();
+  const { lang, verdict, contractText, analysisCache } = useApp();
+
+  // Pick the correct language verdict from cache — instant switch, no API call
+  const activeVerdict = analysisCache
+    ? (lang === "ur" ? analysisCache.verdict.urdu : analysisCache.verdict.english)
+    : verdict;
 
   // Auto-detect language from contract text (overrides UI lang if contract is Urdu)
   const detectedLang = useMemo((): "en" | "ur" => {
@@ -157,12 +162,12 @@ export const LiveDebate = ({ plain, contractType, industry, role, tier }: Props)
 
   // Build turns from real verdict data
   const turns = useMemo(() => {
-    if (verdict?.red_flags && verdict.red_flags.length > 0) {
-      return buildTurnsFromVerdict(verdict.red_flags, tier, detectedLang);
+    if (activeVerdict?.red_flags && activeVerdict.red_flags.length > 0) {
+      return buildTurnsFromVerdict(activeVerdict.red_flags, tier, detectedLang);
     }
     // Fallback: generic turns when no verdict yet
     return buildFallbackTurns(contractType, industry, tier, detectedLang);
-  }, [verdict, tier, detectedLang, contractType, industry]);
+  }, [activeVerdict, tier, detectedLang, contractType, industry]);
 
   const [turnIdx, setTurnIdx]     = useState(0);
   const [typed, setTyped]         = useState("");

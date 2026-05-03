@@ -230,52 +230,68 @@ async def _stream_agent(
 
 async def _translate_verdict_to_urdu(verdict: dict) -> dict:
     """
-    Translate the English verdict fields to Urdu using Gemini.
+    Translate English verdict fields to Urdu using Mistral.
     - Translates: each finding's risk, recommendations, summary_english → summary_urdu
-    - Keeps: clause quotes, severity values, risk_score, JSON structure
+    - Keeps: clause quotes, severity values, agent names, risk_score, JSON structure
     Falls back to original verdict on any failure.
     """
-    client = _make_client()
+    if not settings.mistral_api_key:
+        logger.warning("MISTRAL_API_KEY not set — skipping Urdu translation")
+        return verdict
+
     prompt = (
         "You are a legal translator specializing in Pakistani law.\n"
         "Translate the following legal analysis from English to Urdu.\n\n"
-        "Rules:\n"
+        "Strict rules:\n"
         "- Keep legal terms like SECP, SBP, Contract Act, section numbers in English\n"
-        "- Translate all explanations and descriptions to Urdu\n"
-        "- Keep the exact same JSON structure\n"
-        "- Translate ONLY these fields: each finding's 'risk' field, 'recommendations' array items, "
-        "and put the Urdu translation of summary_english into the 'summary_urdu' field\n"
-        "- Keep 'clause' fields in their original language — they are contract quotes\n"
-        "- Keep severity values as HIGH MEDIUM LOW in English\n"
-        "- Keep risk_score as a number, unchanged\n"
-        "- Respond ONLY in raw JSON, no markdown, no backticks, no explanation\n\n"
-        f"Input:\n{json.dumps(verdict, ensure_ascii=False)}"
+        "- Translate all explanations and descriptions to Urdu script\n"
+        "- Keep the exact same JSON structure — do not add or remove any fields\n"
+        "- Translate ONLY these fields:\n"
+        "  - Each finding's 'risk' field value\n"
+        "  - Each item in 'recommendations' array\n"
+        "  - 'summary_english' field value — put translation in 'summary_urdu' field\n"
+        "- Keep 'clause' fields in original English — they are contract quotes\n"
+        "- Keep 'severity' values as HIGH MEDIUM LOW in English\n"
+        "- Keep 'agent' values in English\n"
+        "- Keep 'risk_score' as number unchanged\n"
+        "- Respond ONLY in raw JSON — no markdown, no backticks, no explanation\n\n"
+        f"Input JSON:\n{json.dumps(verdict, ensure_ascii=False, indent=2)}"
     )
+
     try:
+        from mistralai.client import Mistral
         loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: client.models.generate_content(
-                model=settings.gemini_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.1,
-                    max_output_tokens=2000,
-                ),
-            ),
-        )
-        raw = response.text.strip()
+
+        def _blocking_call() -> str:
+            client = Mistral(api_key=settings.mistral_api_key)
+            response = client.chat.complete(
+                model="mistral-small-latest",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=3000,
+            )
+            return response.choices[0].message.content.strip()
+
+        raw = await loop.run_in_executor(None, _blocking_call)
+
         if raw.startswith("```"):
             lines = raw.split("\n")
             raw = "\n".join(lines[1:-1]) if len(lines) > 2 else raw
+
         translated = json.loads(raw)
-        # Safety: ensure required keys are present, fall back per-field if missing
+
+        # Safety: ensure all required keys are present
         for key in ("risk_score", "red_flags", "recommendations", "summary_english", "summary_urdu"):
             if key not in translated:
                 translated[key] = verdict.get(key)
+
         return translated
+
+    except json.JSONDecodeError as exc:
+        logger.warning("Translation JSON parse failed: %s — returning English verdict", exc)
+        return verdict
     except Exception as exc:
-        logger.warning("Urdu translation failed — falling back to English verdict: %s", exc)
+        logger.warning("Urdu translation failed: %s — returning English verdict", exc)
         return verdict
 
 
@@ -284,12 +300,13 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
 
     lawyer_ctx, biz_ctx, reg_ctx = await _fetch_rag_context(contract_text)
 
-    logger.info("Starting analysis — mode=%s language=%s", mode, language)
+    logger.info("Starting analysis — mode=%s", mode)
 
+    # Agents always run in English; translation happens after synthesis
     agents = [
-        ("lawyer",      _build_lawyer_prompt(lawyer_ctx, mode, language)),
-        ("businessman", _build_businessman_prompt(biz_ctx, mode, language)),
-        ("regulator",   _build_regulator_prompt(reg_ctx, mode, language)),
+        ("lawyer",      _build_lawyer_prompt(lawyer_ctx, mode)),
+        ("businessman", _build_businessman_prompt(biz_ctx, mode)),
+        ("regulator",   _build_regulator_prompt(reg_ctx, mode)),
     ]
 
     agent_buffers: dict[str, str] = {name: "" for name, _ in agents}
@@ -313,36 +330,37 @@ async def analyze_contract_stream(contract_text: str, mode: str = "technical", l
     await asyncio.gather(*tasks, return_exceptions=True)
 
     try:
-        verdict = await synthesize_verdict(
+        verdict_en = await synthesize_verdict(
             lawyer=agent_buffers["lawyer"],
             businessman=agent_buffers["businessman"],
             regulator=agent_buffers["regulator"],
-            language=language,
         )
         logger.info("Synthesis complete. risk_score=%s flags=%d",
-                    verdict.get("risk_score"), len(verdict.get("red_flags", [])))
-        if language == "urdu":
-            verdict = await _translate_verdict_to_urdu(verdict)
-        yield {"agent": "synthesis", "chunk": "", "done": True, "verdict": verdict}
+                    verdict_en.get("risk_score"), len(verdict_en.get("red_flags", [])))
+
+        # Always translate to Urdu in the same call — cache both on frontend
+        verdict_ur = await _translate_verdict_to_urdu(verdict_en)
+
+        yield {
+            "agent": "synthesis",
+            "chunk": "",
+            "done": True,
+            "verdict": {
+                "english": verdict_en,
+                "urdu": verdict_ur,
+            },
+        }
     except Exception as exc:
         yield {"agent": "synthesis", "chunk": "", "done": True, "error": str(exc)}
 
 
-async def synthesize_verdict(lawyer: str, businessman: str, regulator: str, language: str = "english") -> dict:
+async def synthesize_verdict(lawyer: str, businessman: str, regulator: str) -> dict:
     client = _make_client()
-
-    lang_instr = (
-        "\nIMPORTANT: Write the 'risk' field of each red_flag, all 'recommendations', "
-        "'summary_english', and 'summary_urdu' in Urdu (اردو). "
-        "Keep clause quotes, severity values, agent names, and risk_score unchanged.\n"
-        if language == "urdu" else ""
-    )
 
     prompt = (
         f"LAWYER ANALYSIS:\n{lawyer}\n\n"
         f"BUSINESSMAN ANALYSIS:\n{businessman}\n\n"
         f"REGULATOR ANALYSIS:\n{regulator}\n\n"
-        + lang_instr +
         "Synthesize the above into a final verdict."
     )
 

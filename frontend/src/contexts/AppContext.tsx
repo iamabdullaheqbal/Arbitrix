@@ -36,13 +36,19 @@ export interface AgentDone {
   regulator: boolean;
 }
 
+export interface AnalysisCache {
+  verdict: { english: Verdict; urdu: Verdict };
+  agentOutputs: { english: AgentOutputs; urdu: AgentOutputs };
+  timestamp: number;
+}
+
+const SESSION_KEY = "arbitrix_current_analysis";
+
 interface AppCtx {
-  // UI / language
   lang: Lang;
   setLang: (l: Lang) => void;
   T: typeof t["en"];
 
-  // Contract metadata
   contractType: ContractType | null;
   setContractType: (c: ContractType | null) => void;
   role: UserRole;
@@ -50,7 +56,6 @@ interface AppCtx {
   industry: string;
   setIndustry: (s: string) => void;
 
-  // Analysis state
   contractText: string;
   setContractText: (s: string) => void;
   mode: AnalysisMode;
@@ -64,7 +69,10 @@ interface AppCtx {
   analysisError: string | null;
   setAnalysisError: (e: string | null) => void;
 
-  // Reset all analysis state
+  // Bilingual cache — both languages stored after one analysis run
+  analysisCache: AnalysisCache | null;
+  setAnalysisCache: (c: AnalysisCache | null) => void;
+
   resetAnalysis: () => void;
 }
 
@@ -79,18 +87,42 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<UserRole>("owner");
   const [industry, setIndustry] = useState("");
 
-  // Analysis state
   const [contractText, setContractText] = useState("");
   const [mode, setMode] = useState<AnalysisMode>("technical");
   const [agentOutputs, setAgentOutputs] = useState<AgentOutputs>(EMPTY_OUTPUTS);
   const [agentDone, setAgentDone] = useState<AgentDone>(EMPTY_DONE);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisCache, setAnalysisCacheState] = useState<AnalysisCache | null>(null);
+
+  // Restore from sessionStorage on mount (handles browser back button)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const parsed: AnalysisCache = JSON.parse(raw);
+        setAnalysisCacheState(parsed);
+        setVerdict(parsed.verdict.english);
+        setAgentOutputs(EMPTY_OUTPUTS); // streaming outputs not needed after restore
+      }
+    } catch {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === "ur" ? "rtl" : "ltr";
   }, [lang]);
+
+  const setAnalysisCache = (c: AnalysisCache | null) => {
+    setAnalysisCacheState(c);
+    if (c) {
+      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(c)); } catch { /* quota */ }
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  };
 
   const resetAnalysis = () => {
     setContractText("");
@@ -98,7 +130,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAgentDone(EMPTY_DONE);
     setVerdict(null);
     setAnalysisError(null);
-    // mode is intentionally preserved across analyses
+    setAnalysisCache(null);
   };
 
   const value = useMemo(
@@ -113,10 +145,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       agentDone, setAgentDone,
       verdict, setVerdict,
       analysisError, setAnalysisError,
+      analysisCache, setAnalysisCache,
       resetAnalysis,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lang, contractType, role, industry, contractText, mode, agentOutputs, agentDone, verdict, analysisError]
+    [lang, contractType, role, industry, contractText, mode, agentOutputs, agentDone, verdict, analysisError, analysisCache]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

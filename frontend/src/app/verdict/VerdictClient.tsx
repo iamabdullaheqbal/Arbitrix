@@ -30,15 +30,20 @@ const SEV_LABEL: Record<string, { en: string; ur: string }> = {
 
 export default function VerdictClient() {
   const router = useRouter();
-  const { verdict, lang, setLang, T, contractType, resetAnalysis, analysisError, industry, role, mode } = useApp();
+  const { verdict, lang, setLang, T, contractType, resetAnalysis, analysisError, industry, role, mode, analysisCache } = useApp();
 
   const isUr = lang === "ur";
 
-  useEffect(() => {
-    if (!verdict && !analysisError) router.replace("/analyze");
-  }, [verdict, analysisError, router]);
+  // Read the correct language verdict from cache — no API call needed
+  const displayVerdict = analysisCache
+    ? (isUr ? analysisCache.verdict.urdu : analysisCache.verdict.english)
+    : verdict;
 
-  if (!verdict) {
+  useEffect(() => {
+    if (!displayVerdict && !analysisError) router.replace("/analyze");
+  }, [displayVerdict, analysisError, router]);
+
+  if (!displayVerdict) {
     return (
       <div className="container max-w-3xl py-16 text-center space-y-4">
         {analysisError ? (
@@ -57,7 +62,7 @@ export default function VerdictClient() {
     );
   }
 
-  const score = verdict.risk_score;
+  const score = displayVerdict.risk_score;
   const tier  = score >= 7 ? "high" : score >= 4 ? "mod" : "low";
   const TierIcon = tier === "high" ? AlertTriangle : tier === "mod" ? AlertCircle : ShieldCheck;
   const tierLabel = tier === "high" ? T.risk.high : tier === "mod" ? T.risk.mod : T.risk.low;
@@ -165,16 +170,12 @@ export default function VerdictClient() {
             : (mode === "plain" ? "In Simple Words" : "Executive Summary")}
         </div>
         {isUr ? (
-          <p
-            className="font-urdu text-foreground"
-            dir="rtl"
-            style={urduStyle}
-          >
-            {verdict.summary_urdu || verdict.summary_english}
+          <p className="font-urdu text-foreground" dir="rtl" style={urduStyle}>
+            {displayVerdict.summary_urdu || displayVerdict.summary_english}
           </p>
         ) : (
           <p className="text-base leading-relaxed text-foreground">
-            {verdict.summary_english}
+            {displayVerdict.summary_english}
           </p>
         )}
       </div>
@@ -189,7 +190,7 @@ export default function VerdictClient() {
           </h3>
 
           <div className="space-y-4">
-            {verdict.red_flags.map((flag, i) => {
+            {displayVerdict.red_flags.map((flag, i) => {
               const sev = flag.severity ?? "LOW";
               const borderSide = isUr ? "borderRight" : "borderLeft";
               const borderColor =
@@ -245,7 +246,7 @@ export default function VerdictClient() {
             {isUr ? "سفارشات" : "Action Items"}
           </h3>
           <div className="rounded-2xl bg-emerald-50/50 border border-emerald-100 p-6 space-y-4">
-            {verdict.recommendations.map((rec, i) => (
+            {displayVerdict.recommendations.map((rec, i) => (
               <div key={i} className={`flex gap-3 ${isUr ? "flex-row-reverse" : ""}`}>
                 <div className="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
                 <p

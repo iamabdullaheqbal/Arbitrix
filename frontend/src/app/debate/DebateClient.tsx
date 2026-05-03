@@ -122,7 +122,10 @@ function FindingsCard({ findings, lang }: { findings: Finding[]; lang: string })
 
 export default function DebateClient() {
   const router = useRouter();
-  const { contractText, setAgentOutputs, setAgentDone, setVerdict, setAnalysisError, lang, setLang, resetAnalysis, mode } = useApp();
+  const {
+    contractText, setAgentOutputs, setAgentDone, setVerdict,
+    setAnalysisError, setAnalysisCache, lang, setLang, resetAnalysis, mode,
+  } = useApp();
   const isUr = lang === "ur";
 
   const [outputs, setOutputs] = useState<Record<AgentId, string>>({ lawyer: "", businessman: "", regulator: "" });
@@ -187,15 +190,36 @@ export default function DebateClient() {
     }
   };
 
-  const handleEvent = (event: { agent: string; chunk?: string; done?: boolean; error?: string; verdict?: unknown }) => {
+  // Track English agent outputs for cache (always English from backend)
+  const englishOutputsRef = useRef<Record<AgentId, string>>({ lawyer: "", businessman: "", regulator: "" });
+
+  const handleEvent = (event: {
+    agent: string; chunk?: string; done?: boolean; error?: string;
+    verdict?: { english: unknown; urdu: unknown };
+  }) => {
     const agent = event.agent as AgentId | "synthesis";
 
     if (agent === "synthesis") {
       setSynthesizing(false);
       if (event.error) { setAnalysisError(event.error); setStreamError(event.error); return; }
       if (event.verdict) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setVerdict(event.verdict as any);
+        const { english, urdu } = event.verdict as {
+          english: import("@/contexts/AppContext").Verdict;
+          urdu: import("@/contexts/AppContext").Verdict;
+        };
+
+        // Store both languages in cache — language toggle reads from here, no re-fetch
+        const cache: import("@/contexts/AppContext").AnalysisCache = {
+          verdict: { english, urdu },
+          agentOutputs: {
+            english: { ...englishOutputsRef.current },
+            // Urdu agent outputs: use English for now (debate section shows English findings)
+            urdu: { ...englishOutputsRef.current },
+          },
+          timestamp: Date.now(),
+        };
+        setAnalysisCache(cache);
+        setVerdict(english); // default display
         router.push("/verdict");
       }
       return;
@@ -214,6 +238,7 @@ export default function DebateClient() {
     if (!event.done && event.chunk) {
       setOutputs((prev) => ({ ...prev, [agentId]: prev[agentId] + event.chunk }));
       setAgentOutputs((prev) => ({ ...prev, [agentId]: prev[agentId] + (event.chunk ?? "") }));
+      englishOutputsRef.current[agentId] += event.chunk ?? "";
     }
 
     if (event.done) {
