@@ -5,10 +5,10 @@ load_dotenv()
 
 
 class Settings(BaseSettings):
-    gemini_api_key: str
-    gemini_model: str = "gemini-2.5-flash"
-    mistral_api_key: str
-    mistral_model:str = "codestral-latest"
+    groq_api_key: str
+    groq_model: str = "llama-3.3-70b-versatile"
+    mistral_api_key: str = ""
+    mistral_model: str = "mistral-small-latest"
     cors_origin: str = "http://localhost:3000"
     neon_database_url: str = ""
 

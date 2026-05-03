@@ -3,8 +3,7 @@ import json
 import logging
 from typing import AsyncGenerator
 
-from google import genai
-from google.genai import types
+from groq import Groq
 
 from agents.synthesis import SYNTHESIS_SYSTEM_PROMPT
 from config import settings
@@ -14,15 +13,8 @@ logger = logging.getLogger(__name__)
 TEMPERATURE = 0.3
 
 
-def _make_client() -> genai.Client:
-    return genai.Client(api_key=settings.gemini_api_key)
-
-
-def _gen_config(max_tokens: int = 1000) -> types.GenerateContentConfig:
-    return types.GenerateContentConfig(
-        temperature=TEMPERATURE,
-        max_output_tokens=max_tokens,
-    )
+def _make_client() -> Groq:
+    return Groq(api_key=settings.groq_api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -156,51 +148,53 @@ def _build_regulator_prompt(rag_context: str, mode: str, language: str = "englis
 # Agent streaming — with retry + exponential backoff
 # ---------------------------------------------------------------------------
 
-async def _call_gemini_with_retry(
-    client: genai.Client,
+async def _call_groq_with_retry(
+    client: Groq,
     system_prompt: str,
     contract_text: str,
     max_retries: int = 3,
 ) -> list[str]:
-    """Call Gemini streaming with exponential backoff on 429 errors."""
+    """Call Groq with exponential backoff on rate limit errors."""
     import random
     for attempt in range(max_retries):
         try:
             loop = asyncio.get_event_loop()
-            # Capture in local vars to avoid closure issues
             _system = system_prompt
             _content = contract_text
-            _model = settings.gemini_model
+            _model = settings.groq_model
 
-            def _blocking_stream():
+            def _blocking_call():
                 chunks = []
-                for chunk in client.models.generate_content_stream(
+                stream = client.chat.completions.create(
                     model=_model,
-                    contents=_content,
-                    config=types.GenerateContentConfig(
-                        system_instruction=_system,
-                        temperature=TEMPERATURE,
-                        max_output_tokens=2000,
-                    ),
-                ):
-                    if chunk.text:
-                        chunks.append(chunk.text)
-                logger.info("Gemini stream returned %d chunks, total chars: %d",
+                    messages=[
+                        {"role": "system", "content": _system},
+                        {"role": "user", "content": _content},
+                    ],
+                    temperature=TEMPERATURE,
+                    max_tokens=2000,
+                    stream=True,
+                )
+                for chunk in stream:
+                    text = chunk.choices[0].delta.content or ""
+                    if text:
+                        chunks.append(text)
+                logger.info("Groq stream: %d chunks, %d chars",
                             len(chunks), sum(len(c) for c in chunks))
                 return chunks
 
-            return await loop.run_in_executor(None, _blocking_stream)
+            return await loop.run_in_executor(None, _blocking_call)
 
         except Exception as exc:
-            is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
+            is_rate_limit = "429" in str(exc) or "rate_limit" in str(exc).lower()
             if is_rate_limit and attempt < max_retries - 1:
                 wait = (2 ** attempt) + random.uniform(0, 1)
-                logger.warning("Rate limit hit (attempt %d/%d) — waiting %.1fs", attempt + 1, max_retries, wait)
+                logger.warning("Rate limit (attempt %d/%d) — waiting %.1fs", attempt + 1, max_retries, wait)
                 await asyncio.sleep(wait)
             else:
                 raise
 
-    raise RuntimeError("Max retries exceeded for Gemini API call")
+    raise RuntimeError("Max retries exceeded for Groq API call")
 
 
 async def _stream_agent(
@@ -212,16 +206,16 @@ async def _stream_agent(
     full_text = ""
     try:
         client = _make_client()
-        chunks = await _call_gemini_with_retry(client, system_prompt, contract_text)
+        chunks = await _call_groq_with_retry(client, system_prompt, contract_text)
         for text in chunks:
             if text:
                 full_text += text
                 await queue.put({"agent": agent_name, "chunk": text, "done": False})
-        logger.info("Agent %s completed. Output length: %d chars. Preview: %s",
+        logger.info("Agent %s completed. %d chars. Preview: %s",
                     agent_name, len(full_text), full_text[:200])
         await queue.put({"agent": agent_name, "chunk": "", "done": True})
     except Exception as exc:
-        is_rate_limit = "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc)
+        is_rate_limit = "429" in str(exc) or "rate_limit" in str(exc).lower()
         err_msg = "Rate limit reached — please retry in a moment." if is_rate_limit else str(exc)
         logger.error("Agent %s failed: %s", agent_name, exc)
         await queue.put({"agent": agent_name, "chunk": "", "done": True, "error": err_msg})
@@ -365,20 +359,21 @@ async def synthesize_verdict(lawyer: str, businessman: str, regulator: str) -> d
     )
 
     loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYNTHESIS_SYSTEM_PROMPT,
-                temperature=TEMPERATURE,
-                max_output_tokens=3000,
-            ),
-        ),
-    )
 
-    raw_text = response.text.strip()
+    def _blocking_call():
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            messages=[
+                {"role": "system", "content": SYNTHESIS_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=TEMPERATURE,
+            max_tokens=3000,
+        )
+        return response.choices[0].message.content.strip()
+
+    raw_text = await loop.run_in_executor(None, _blocking_call)
+
     if raw_text.startswith("```"):
         lines = raw_text.split("\n")
         raw_text = "\n".join(lines[1:-1]) if len(lines) > 2 else raw_text
