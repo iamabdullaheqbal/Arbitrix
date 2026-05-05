@@ -396,10 +396,4 @@ A post-synthesis validation layer enforces these bounds — if agents return emp
 
 ---
 
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
 *Arbitrix is an AI-powered tool for informational purposes only. It is not a substitute for qualified legal counsel. Always consult a licensed lawyer before signing high-value contracts. Arbitrix flags risk for your awareness — final decisions remain yours.*
