@@ -1,42 +1,78 @@
-# Arbitrix
+<div align="center">
+
+# ⚖️ Arbitrix
 ### *Three Minds. One Verdict.*
 
-AI-powered legal contract analysis platform built natively for Pakistani law. Upload a contract, watch three expert AI advisors debate it in real time, and receive a structured verdict in English and Urdu.
+**AI-powered legal contract analysis platform built natively for Pakistani law**
 
-**Live backend:** https://arbitrix.onrender.com
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-1.5_Flash-4285F4?style=flat-square&logo=google&logoColor=white)
+![pgvector](https://img.shields.io/badge/pgvector-Neon_DB-00E699?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
+
+</div>
+
+---
+
+## Demo
+
+![Arbitrix Demo](docs/demo.png)
+*Three-agent debate analyzing a Pakistani employment contract*
+
+---
+
+## What Is Arbitrix
+
+Arbitrix is a multi-agent AI legal consulting platform that analyzes contracts through three expert AI personas simultaneously — a Lawyer, a Businessman, and a Regulator — who debate every clause in real time before delivering a structured verdict.
+
+Most Pakistanis — SME owners, freelancers, and startup founders — sign contracts they don't fully understand, with no affordable access to legal review. Arbitrix solves this by providing instant, professional-grade contract analysis grounded in Pakistani law: Contract Act 1872, Companies Act 2017, SECP regulations, and SBP guidelines.
+
+Unlike generic AI tools trained on Western legal templates, Arbitrix is built natively for Pakistani law, delivers output in both English and Urdu, and uses a calibrated scoring system that prevents false alarms on fair contracts.
 
 ---
 
 ## How It Works
 
-1. **Upload** — Drop a PDF or DOCX contract. Text is extracted server-side via PyMuPDF or python-docx.
-2. **RAG Retrieval** — Before agents fire, three parallel vector searches pull relevant precedents from a Neon DB of Pakistani legal documents (Contract Act 1872, Companies Act 2017, SECP regulations, SBP guidelines).
-3. **Parallel Analysis** — Three Gemini agents run simultaneously, each citing specific Pakistani law sections:
-   - **Lawyer** — flags legally dangerous clauses, cites Contract Act 1872 / Companies Act 2017 sections
-   - **Businessman** — identifies commercial and financial risks, cites labour and commercial regulations
-   - **Regulator** — checks compliance against SECP, SBP, PTA, EOBI, ESSI with exact regulation citations
-4. **Live Streaming** — Each agent streams findings token-by-token to the frontend via SSE.
-5. **Synthesis** — A fourth Gemini agent consolidates findings into a calibrated verdict: risk score 1–10, red flags with severity, recommendations, and bilingual summary.
-6. **Score Validation** — A post-synthesis validation layer prevents score inflation — fair contracts score 1–3, not 8–9.
-7. **Urdu Translation** — Mistral translates the full verdict to Urdu with RTL layout and Noto Nastaliq font. Both languages cached in sessionStorage — language toggle is instant with zero extra API calls.
+```
+Upload Contract (PDF/DOCX)
+        ↓
+Text Extraction (PyMuPDF / python-docx)
+        ↓
+RAG Retrieval — 3 parallel queries → Neon DB pgvector
+(4,289 chunks from Pakistani legal documents)
+        ↓
+Three Agents fire simultaneously (asyncio.gather):
+  ⚖️  Lawyer      → Pakistani Contract Act 1872
+  💼  Businessman → Commercial risk analysis
+  🏛️  Regulator   → SECP / SBP compliance
+        ↓
+SSE Streaming → Live debate on screen
+        ↓
+Synthesis Agent → Risk Score + Red Flags + Recommendations
+        ↓
+Mistral Translation → Urdu output (if selected)
+        ↓
+Session Cache → Instant language switching (zero extra API calls)
+```
 
 ---
 
-## Features
+## Key Features
 
-- Multi-agent parallel analysis — three expert personas run concurrently, not sequentially
-- Law citation enforcement — every finding must cite a specific Pakistani law, act, or section number
-- Calibrated risk scoring — fair contracts score low; score validation layer prevents hallucinated high scores
-- RAG pipeline — 3,200+ chunks from Pakistani legal documents ingested into Neon pgvector
-- Live SSE streaming — token-by-token debate visible on screen as it happens
-- Two analysis modes — Technical (formal legal language) and Plain Language (simple explanations)
-- Bilingual output — full verdict in English and Urdu, both generated in one backend call
-- Session cache — both language versions stored in sessionStorage; language toggle needs zero API calls
-- Risk score 1–10 — color-coded (green / amber / red) for instant risk assessment
-- Structured red flags — exact clause quote, risk with law citation, severity (HIGH / MEDIUM / LOW), agent source
-- PDF and DOCX support — drag-and-drop or file picker, up to 20 MB
-- Retry with exponential backoff — respects Gemini's `retryDelay` header on 429 errors
-- Session-only state — no localStorage, no data persistence, resets on page refresh
+- **Multi-agent parallel analysis** via `asyncio.gather()` — three experts run concurrently, not sequentially
+- **Live SSE streaming debate** — token by token, each agent column populates in real time
+- **RAG system** with 4,289 Pakistani legal document chunks — agents cite actual law, not guesses
+- **Law citation enforcement** — every finding must cite a specific Pakistani act, section, or regulation
+- **Risk score 1–10** with calibrated scoring guide — prevents hallucinated high scores on fair contracts
+- **Score validation layer** — post-synthesis check caps scores based on actual finding counts
+- **Bilingual output** — English + Urdu with RTL rendering and Noto Nastaliq font
+- **Session-only caching** — both language versions generated in one call; language switch = zero API calls
+- **Pakistani law native** — Contract Act 1872, SECP, SBP, EOBI, ESSI, PTA
+- **Technical and Plain language modes** — formal legal analysis or simple everyday explanations
+- **Graceful fallback** — agents run with base prompts even if RAG or Neon DB is unreachable
+- **Retry with exponential backoff** — respects Gemini's `retryDelay` on 429 rate limit errors
 
 ---
 
@@ -44,19 +80,18 @@ AI-powered legal contract analysis platform built natively for Pakistani law. Up
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| Frontend | Next.js 16 + Tailwind CSS v4 | UI, routing, SSE consumer |
-| Backend | Python 3.13 + FastAPI | API server, async orchestration |
-| Agents + Synthesis | Gemini 1.5 Flash (`google-genai`) | Three analysis agents + synthesis |
-| Translation | Mistral Small (`mistralai`) | English → Urdu verdict translation |
-| Embeddings | `sentence-transformers` all-MiniLM-L6-v2 | Local 384-dim embeddings for RAG |
-| Vector DB | Neon DB + pgvector | Stores and queries legal document chunks |
-| PDF Parsing | PyMuPDF (`fitz`) | Text extraction from PDF contracts |
-| DOCX Parsing | `python-docx` | Text extraction from Word contracts |
-| Streaming | Server-Sent Events (`sse-starlette`) | Real-time token delivery to frontend |
-| DB Driver | `asyncpg` | Async PostgreSQL connection pool |
-| Config | `pydantic-settings` + `python-dotenv` | Typed environment variable management |
-| Backend PM | `uv` | Dependency management |
-| Frontend PM | `npm` | Node dependency management |
+| Frontend | Next.js 16 + Tailwind CSS v4 | Upload UI, debate panel, verdict card |
+| Backend | FastAPI (Python 3.13, async) | REST endpoints, SSE streaming, orchestration |
+| Primary LLM | Gemini 1.5 Flash (`google-genai`) | Three agents + synthesis (temp=0.3) |
+| Translation | Mistral Small Latest (`mistralai`) | English → Urdu translation (temp=0.1) |
+| Embeddings | `sentence-transformers` all-MiniLM-L6-v2 | 384-dim vectors for RAG |
+| Vector DB | Neon DB + pgvector | HNSW index, cosine similarity search |
+| PDF Parsing | PyMuPDF (`fitz`) | Text extraction from contracts |
+| DOCX Parsing | `python-docx` | Word document extraction |
+| Streaming | Server-Sent Events (`sse-starlette`) | Real-time token streaming to frontend |
+| Orchestration | `asyncio.gather()` | Parallel agent execution |
+| Package Manager | `uv` | Python dependency management |
+| Deployment | Vercel (frontend) + Render (backend) | Production hosting |
 
 ---
 
@@ -66,19 +101,19 @@ AI-powered legal contract analysis platform built natively for Pakistani law. Up
 arbitrix/
 ├── backend/
 │   ├── main.py                     # FastAPI app, endpoints, CORS, lifespan
-│   ├── config.py                   # Typed settings (Gemini, Mistral, Neon, CORS)
-│   ├── setup_db.sql                # Neon DB schema — run once on Neon dashboard
+│   ├── config.py                   # Typed settings via pydantic-settings
+│   ├── setup_db.sql                # Neon DB schema — run once
 │   ├── pyproject.toml
-│   ├── .env                        # API keys and connection strings
+│   ├── .env
 │   │
-│   ├── agents/                     # System prompt definitions
+│   ├── agents/
 │   │   ├── lawyer.py               # Cites Contract Act 1872, Companies Act 2017
 │   │   ├── businessman.py          # Cites labour law, commercial regulations
 │   │   ├── regulator.py            # Cites SECP, SBP, EOBI, ESSI, PTA
 │   │   └── synthesis.py            # Calibrated scoring guide + honest assessment rules
 │   │
 │   ├── services/
-│   │   ├── orchestrator.py         # RAG → agents → synthesis → score validation → translation
+│   │   ├── orchestrator.py         # RAG → agents → synthesis → validation → translation
 │   │   └── pdf_extractor.py        # PyMuPDF text extraction
 │   │
 │   ├── models/
@@ -91,97 +126,72 @@ arbitrix/
 │   │   └── retriever.py            # Cosine similarity search, pool + standalone fallback
 │   │
 │   ├── scripts/
-│   │   └── ingest_docs.py          # CLI: uv run python scripts/ingest_docs.py ./legal_docs
+│   │   └── ingest_docs.py          # CLI ingestion script
 │   │
-│   └── legal_docs/                 # Pakistani legal documents for RAG ingestion
+│   └── legal_docs/
 │       ├── core_law/               # Contract Act 1872, Companies Act 2017, Arbitration Act 1940
-│       ├── secp/                   # SECP Companies Regulations
-│       ├── sbp/                    # SBP EFT Act
+│       ├── secp/                   # SECP Companies Regulations 2024
+│       ├── sbp/                    # SBP EFT Act 2007
 │       └── sample_contracts/
 │
 └── frontend/
     ├── package.json
     └── src/
-        ├── index.css               # Global styles, Tailwind, custom tokens
         ├── app/
-        │   ├── layout.tsx          # Root layout, Noto Nastaliq font, Navbar
-        │   ├── page.tsx            # Landing page
-        │   ├── not-found.tsx
-        │   ├── analyze/
-        │   │   ├── page.tsx
-        │   │   └── AnalyzeClient.tsx   # Mode selector + contract type + upload
-        │   ├── debate/
-        │   │   ├── page.tsx
-        │   │   └── DebateClient.tsx    # SSE consumer, three-column live stream
-        │   ├── verdict/
-        │   │   ├── page.tsx
-        │   │   └── VerdictClient.tsx   # Risk score, red flags, summaries, debate replay
+        │   ├── analyze/            # Mode selector + contract type + upload
+        │   ├── debate/             # SSE consumer, three-column live stream
+        │   ├── verdict/            # Risk score, red flags, summaries, debate replay
         │   └── features/
-        │       └── page.tsx
-        │
         ├── components/
-        │   ├── Providers.tsx
-        │   ├── arbitrix/
-        │   │   ├── Navbar.tsx          # Language toggle (EN / اردو)
-        │   │   ├── Hero.tsx
-        │   │   ├── HowItWorks.tsx
-        │   │   ├── KnowledgeSection.tsx
-        │   │   ├── TrustSection.tsx
-        │   │   ├── ContractTypeSelector.tsx
-        │   │   ├── UploadZone.tsx      # Drag-drop upload, calls POST /upload
-        │   │   ├── LiveDebate.tsx      # Animated debate replay with real findings
-        │   │   ├── Verdict.tsx
-        │   │   └── DisclaimerStrip.tsx
-        │   └── ui/                     # shadcn/ui primitives
-        │
+        │   ├── arbitrix/           # Domain-specific components
+        │   └── ui/                 # shadcn/ui primitives
         ├── contexts/
-        │   └── AppContext.tsx          # Global state + sessionStorage bilingual cache
-        │
-        ├── hooks/
-        │   ├── use-mobile.tsx
-        │   └── use-toast.ts
-        │
+        │   └── AppContext.tsx      # Global state + sessionStorage bilingual cache
         └── lib/
-            ├── i18n.ts                 # EN / UR translation strings
-            └── utils.ts
+            └── i18n.ts             # EN / UR translation strings
 ```
 
 ---
 
 ## Prerequisites
 
-- Python 3.13+
+- Python 3.11+
 - Node.js 18+
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
-- Gemini API key — [aistudio.google.com](https://aistudio.google.com) (use `gemini-1.5-flash` for higher free-tier limits)
-- Mistral API key — [console.mistral.ai](https://console.mistral.ai) (free tier available)
+- Gemini API key — [aistudio.google.com](https://aistudio.google.com) (use `gemini-1.5-flash`, 1500 req/day free)
+- Mistral API key — [console.mistral.ai](https://console.mistral.ai) (free tier, no card required)
 - Neon DB account — [neon.tech](https://neon.tech) (free tier works)
 
 ---
 
-## Setup
+## Environment Variables
 
-### 1. Configure environment
+| Variable | Service | Where To Get |
+|---|---|---|
+| `GEMINI_API_KEY` | Google AI Studio | [aistudio.google.com](https://aistudio.google.com) |
+| `GEMINI_MODEL` | — | Default: `gemini-1.5-flash` |
+| `MISTRAL_API_KEY` | Mistral AI | [console.mistral.ai](https://console.mistral.ai) |
+| `NEON_DATABASE_URL` | Neon DB | Neon dashboard → Connection string |
+| `CORS_ORIGIN` | — | Default: `http://localhost:3000` |
+| `NEXT_PUBLIC_API_URL` | — | Default: `http://localhost:8000` |
 
-Set these values in `backend/.env`:
+---
 
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-1.5-flash
-MISTRAL_API_KEY=your_mistral_api_key_here
-CORS_ORIGIN=http://localhost:3000
-NEON_DATABASE_URL=postgresql://user:pass@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
+## Running the Backend
+
+```bash
+# 1. Navigate to backend
+cd backend
+
+# 2. Install dependencies
+uv sync
+
+# 3. Create .env file
+cp .env.example .env
+# Fill in GEMINI_API_KEY, MISTRAL_API_KEY, NEON_DATABASE_URL
 ```
 
-Set this in `frontend/.env`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-### 2. Set up Neon DB
-
-Run `backend/setup_db.sql` in the Neon SQL editor:
+**4. Set up Neon DB** — run this SQL in the Neon dashboard SQL editor:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -200,44 +210,28 @@ CREATE INDEX IF NOT EXISTS legal_chunks_embedding_idx
     ON legal_chunks USING hnsw (embedding vector_cosine_ops);
 ```
 
-The schema is also auto-created on first startup if the table doesn't exist.
-
-### 3. Ingest legal documents
-
-Place Pakistani legal PDFs/DOCXs into subfolders under `backend/legal_docs/`:
-
-```
-legal_docs/
-├── core_law/      ← Contract Act 1872, Companies Act 2017, Arbitration Act 1940
-├── secp/          ← SECP Companies Regulations
-├── sbp/           ← SBP EFT Act, FE Manual
-└── sample_contracts/
-```
-
-Then run:
-
 ```bash
-cd backend
+# 5. Ingest legal documents
 uv run python scripts/ingest_docs.py ./legal_docs
-```
 
-Skips already-ingested files automatically. RAG is optional — agents run with base prompts if Neon is unreachable.
-
-### 4. Run the backend
-
-```bash
-cd backend
-uv sync
+# 6. Start the server
 uv run uvicorn main:app --reload
 ```
 
 Backend runs at **http://localhost:8000**
 
-### 5. Run the frontend
+---
+
+## Running the Frontend
 
 ```bash
+# 1. Navigate to frontend
 cd frontend
+
+# 2. Install dependencies
 npm install
+
+# 3. Start dev server
 npm run dev
 ```
 
@@ -245,16 +239,15 @@ Frontend runs at **http://localhost:3000**
 
 ---
 
-## Environment Variables
+## Legal Documents Included
 
-| Variable | Required | Description |
+| Document | Category | Relevance |
 |---|---|---|
-| `GEMINI_API_KEY` | Yes | From [aistudio.google.com](https://aistudio.google.com) — use `gemini-1.5-flash` (1500 req/day free) |
-| `GEMINI_MODEL` | No | Default: `gemini-1.5-flash` |
-| `MISTRAL_API_KEY` | Yes (for Urdu) | From [console.mistral.ai](https://console.mistral.ai) — used only for translation |
-| `CORS_ORIGIN` | No | Default: `http://localhost:3000` |
-| `NEON_DATABASE_URL` | Yes (for RAG) | Neon connection string with `sslmode=require` |
-| `NEXT_PUBLIC_API_URL` | No | Default: `http://localhost:8000` |
+| Pakistani Contract Act 1872 | `core_law` | Foundation of all contract law |
+| Companies Act 2017 | `core_law` | Corporate contracts and obligations |
+| Arbitration Act 1940 | `core_law` | Dispute resolution clauses |
+| EFT Act 2007 | `sbp` | Electronic payment terms |
+| Companies Regulations 2024 (SECP) | `secp` | Corporate compliance requirements |
 
 ---
 
@@ -266,44 +259,80 @@ Frontend runs at **http://localhost:3000**
 | `POST` | `/analyze` | `{ contract_text, mode, language }` | SSE stream of agent events |
 | `POST` | `/verdict` | `{ lawyer, businessman, regulator }` | Synthesized verdict JSON |
 
-### SSE Event Shape (`/analyze`)
+### SSE Event Shape
 
 ```json
-// Streaming chunk
+// Streaming chunk (during analysis)
 { "agent": "lawyer", "chunk": "token text", "done": false }
 
 // Agent complete
 { "agent": "lawyer", "chunk": "", "done": true }
 
-// Synthesis complete — verdict contains both language versions
+// Final synthesis event — both language versions in one response
 {
   "agent": "synthesis",
   "chunk": "",
   "done": true,
   "verdict": {
-    "english": { "risk_score": 2.1, "red_flags": [...], "recommendations": [...], "summary_english": "..." },
-    "urdu":    { "risk_score": 2.1, "red_flags": [...], "recommendations": [...], "summary_urdu": "..." }
+    "english": {
+      "risk_score": 2.1,
+      "red_flags": [{ "clause": "...", "risk": "...", "severity": "HIGH", "agent": "lawyer" }],
+      "recommendations": ["..."],
+      "summary_english": "..."
+    },
+    "urdu": {
+      "risk_score": 2.1,
+      "red_flags": [{ "clause": "...", "risk": "...", "severity": "HIGH", "agent": "lawyer" }],
+      "recommendations": ["..."],
+      "summary_urdu": "..."
+    }
   }
 }
 ```
 
-### Risk Score Guide
+---
+
+## RAG Architecture
+
+The RAG pipeline retrieves relevant Pakistani legal precedents before each analysis run:
+
+- Documents are chunked by sentence boundaries (3–5 sentences per chunk, 1-sentence overlap)
+- Each chunk is embedded using `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions, runs locally)
+- Embeddings stored in Neon DB with an HNSW index for fast cosine similarity search
+- Three parallel retrieval queries fire before agents start — one per agent with a domain-specific query
+- Top 5 most relevant chunks (similarity ≥ 0.3) are injected into each agent's system prompt
+- If Neon DB is unreachable, agents run with base prompts — the app never crashes due to RAG failure
+
+---
+
+## Risk Score Calibration
 
 | Score | Meaning |
 |---|---|
-| 1–2 | Well-drafted, fair contract — no major issues |
-| 3–4 | Minor issues only — largely fair |
-| 5–6 | Several MEDIUM findings — unfair in notable ways |
-| 7–8 | At least one HIGH finding — significant risk |
-| 9–10 | Multiple HIGH findings — illegal clauses or severe rights violations |
+| 9–10 | Multiple HIGH findings across agents — **Do not sign** |
+| 7–8 | At least one HIGH finding — **Major revision needed** |
+| 5–6 | Several MEDIUM findings — **Review carefully** |
+| 3–4 | Only LOW findings — **Small improvements needed** |
+| 1–2 | No genuine findings — **Fair contract, safe to sign** |
+
+A post-synthesis validation layer enforces these bounds — if agents return empty findings, the score is capped at 1.5 regardless of what the synthesis agent outputs.
 
 ---
 
 ## Team
 
-| Name | Role |
-|---|---|
-| Abdullah | Backend — FastAPI, RAG pipeline, agent orchestration, SSE streaming, scoring calibration |
-| Sharina | Frontend — Next.js UI, SSE consumer, verdict page, bilingual cache, Urdu support |
+| Role | Name | Responsibilities |
+|---|---|---|
+| Backend Engineer | Abdullah | FastAPI, RAG pipeline, agent orchestration, SSE streaming, scoring calibration |
+| Frontend Engineer | Sharina Khan | Next.js UI, SSE consumer, verdict card, bilingual cache, Urdu rendering |
+| Organization | Archonera | — |
 
-**Organization:** Archonera
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+*Arbitrix is an AI-powered tool for informational purposes only. It is not a substitute for qualified legal counsel. Always consult a licensed lawyer before signing high-value contracts. Arbitrix flags risk for your awareness — final decisions remain yours.*
