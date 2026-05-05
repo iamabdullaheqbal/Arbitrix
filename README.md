@@ -5,10 +5,10 @@
 
 **AI-powered legal contract analysis platform built natively for Pakistani law**
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.13+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-1.5_Flash-4285F4?style=flat-square&logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?style=flat-square&logo=google&logoColor=white)
 ![pgvector](https://img.shields.io/badge/pgvector-Neon_DB-00E699?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
@@ -18,7 +18,10 @@
 
 ## Demo
 
-![Arbitrix Demo](docs/demo.png)
+<div align="center">
+  <img src="frontend/public/favicon.png" alt="Arbitrix" width="120" />
+</div>
+
 *Three-agent debate analyzing a Pakistani employment contract*
 
 ---
@@ -82,8 +85,8 @@ Session Cache → Instant language switching (zero extra API calls)
 |---|---|---|
 | Frontend | Next.js 16 + Tailwind CSS v4 | Upload UI, debate panel, verdict card |
 | Backend | FastAPI (Python 3.13, async) | REST endpoints, SSE streaming, orchestration |
-| Primary LLM | Gemini 1.5 Flash (`google-genai`) | Three agents + synthesis (temp=0.3) |
-| Translation | Mistral Small Latest (`mistralai`) | English → Urdu translation (temp=0.1) |
+| Primary LLM | Gemini 2.5 Flash (`google-genai`) | Three agents + synthesis (temp=0.3) |
+| Translation | Mistral Codestral (`mistralai`) | English → Urdu translation (temp=0.1) |
 | Embeddings | `sentence-transformers` all-MiniLM-L6-v2 | 384-dim vectors for RAG |
 | Vector DB | Neon DB + pgvector | HNSW index, cosine similarity search |
 | PDF Parsing | PyMuPDF (`fitz`) | Text extraction from contracts |
@@ -155,10 +158,10 @@ arbitrix/
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - Node.js 18+
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
-- Gemini API key — [aistudio.google.com](https://aistudio.google.com) (use `gemini-1.5-flash`, 1500 req/day free)
+- Gemini API key — [aistudio.google.com](https://aistudio.google.com) (use `gemini-2.5-flash`)
 - Mistral API key — [console.mistral.ai](https://console.mistral.ai) (free tier, no card required)
 - Neon DB account — [neon.tech](https://neon.tech) (free tier works)
 
@@ -169,8 +172,9 @@ arbitrix/
 | Variable | Service | Where To Get |
 |---|---|---|
 | `GEMINI_API_KEY` | Google AI Studio | [aistudio.google.com](https://aistudio.google.com) |
-| `GEMINI_MODEL` | — | Default: `gemini-1.5-flash` |
+| `GEMINI_MODEL` | — | Default: `gemini-2.5-flash` |
 | `MISTRAL_API_KEY` | Mistral AI | [console.mistral.ai](https://console.mistral.ai) |
+| `MISTRAL_MODEL` | — | Default: `codestral-latest` |
 | `NEON_DATABASE_URL` | Neon DB | Neon dashboard → Connection string |
 | `CORS_ORIGIN` | — | Default: `http://localhost:3000` |
 | `NEXT_PUBLIC_API_URL` | — | Default: `http://localhost:8000` |
@@ -188,7 +192,7 @@ uv sync
 
 # 3. Create .env file
 cp .env.example .env
-# Fill in GEMINI_API_KEY, MISTRAL_API_KEY, NEON_DATABASE_URL
+# Fill in GEMINI_API_KEY, GEMINI_MODEL, MISTRAL_API_KEY, MISTRAL_MODEL, NEON_DATABASE_URL
 ```
 
 **4. Set up Neon DB** — run this SQL in the Neon dashboard SQL editor:
