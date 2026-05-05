@@ -102,56 +102,119 @@ Session Cache → Instant language switching (zero extra API calls)
 
 ```
 arbitrix/
+├── README.md
+├── .gitignore
+│
 ├── backend/
-│   ├── main.py                     # FastAPI app, endpoints, CORS, lifespan
-│   ├── config.py                   # Typed settings via pydantic-settings
-│   ├── setup_db.sql                # Neon DB schema — run once
-│   ├── pyproject.toml
-│   ├── .env
+│   ├── main.py                          # FastAPI app, endpoints, CORS, lifespan
+│   ├── config.py                        # Typed settings via pydantic-settings
+│   ├── setup_db.sql                     # Neon DB schema — run once on Neon dashboard
+│   ├── pyproject.toml                   # Python dependencies (managed by uv)
+│   ├── uv.lock
+│   ├── .env                             # API keys and connection strings
+│   ├── .python-version                  # Pins Python 3.13
 │   │
-│   ├── agents/
-│   │   ├── lawyer.py               # Cites Contract Act 1872, Companies Act 2017
-│   │   ├── businessman.py          # Cites labour law, commercial regulations
-│   │   ├── regulator.py            # Cites SECP, SBP, EOBI, ESSI, PTA
-│   │   └── synthesis.py            # Calibrated scoring guide + honest assessment rules
+│   ├── agents/                          # System prompt definitions
+│   │   ├── __init__.py
+│   │   ├── lawyer.py                    # Cites Contract Act 1872, Companies Act 2017
+│   │   ├── businessman.py               # Cites labour law, commercial regulations
+│   │   ├── regulator.py                 # Cites SECP, SBP, EOBI, ESSI, PTA
+│   │   └── synthesis.py                 # Calibrated scoring guide + honest assessment rules
 │   │
 │   ├── services/
-│   │   ├── orchestrator.py         # RAG → agents → synthesis → validation → translation
-│   │   └── pdf_extractor.py        # PyMuPDF text extraction
+│   │   ├── __init__.py
+│   │   ├── orchestrator.py              # RAG → agents → synthesis → validation → translation
+│   │   └── pdf_extractor.py             # PyMuPDF text extraction
 │   │
 │   ├── models/
-│   │   └── schemas.py              # Pydantic request/response models
+│   │   ├── __init__.py
+│   │   └── schemas.py                   # Pydantic request/response models
 │   │
 │   ├── rag/
-│   │   ├── db.py                   # asyncpg pool, pgvector codec, schema auto-creation
-│   │   ├── embedder.py             # Singleton sentence-transformers wrapper
-│   │   ├── ingester.py             # PDF/DOCX reader, sentence chunker, batch insert
-│   │   └── retriever.py            # Cosine similarity search, pool + standalone fallback
+│   │   ├── __init__.py
+│   │   ├── db.py                        # asyncpg pool, pgvector codec, schema auto-creation
+│   │   ├── embedder.py                  # Singleton sentence-transformers wrapper
+│   │   ├── ingester.py                  # PDF/DOCX reader, sentence chunker, batch insert
+│   │   └── retriever.py                 # Cosine similarity search, pool + standalone fallback
 │   │
 │   ├── scripts/
-│   │   └── ingest_docs.py          # CLI ingestion script
+│   │   ├── __init__.py
+│   │   └── ingest_docs.py               # CLI: uv run python scripts/ingest_docs.py ./legal_docs
 │   │
-│   └── legal_docs/
-│       ├── core_law/               # Contract Act 1872, Companies Act 2017, Arbitration Act 1940
-│       ├── secp/                   # SECP Companies Regulations 2024
-│       ├── sbp/                    # SBP EFT Act 2007
-│       └── sample_contracts/
+│   └── legal_docs/                      # Pakistani legal documents for RAG ingestion
+│       ├── core_law/
+│       │   ├── Contract_Act_1872.doc.pdf
+│       │   ├── companiesAct2017.pdf
+│       │   └── the_arbitration_act-_1940-pdf.pdf
+│       ├── secp/
+│       │   └── Companies-Regulations-2024-updated-upto-25.07.2025-Reviewed-14042026.pdf
+│       ├── sbp/
+│       │   └── EFT_Act_2007.pdf
+│       └── sample_contracts/            # (add sample contracts here)
 │
 └── frontend/
     ├── package.json
+    ├── next.config.ts
+    ├── tsconfig.json
+    ├── postcss.config.mjs
+    ├── eslint.config.mjs
+    ├── .env                             # NEXT_PUBLIC_API_URL
+    │
+    ├── public/
+    │   ├── favicon.png
+    │   └── placeholder.svg
+    │
     └── src/
+        ├── index.css                    # Global styles, Tailwind v4, custom tokens
+        │
         ├── app/
-        │   ├── analyze/            # Mode selector + contract type + upload
-        │   ├── debate/             # SSE consumer, three-column live stream
-        │   ├── verdict/            # Risk score, red flags, summaries, debate replay
+        │   ├── layout.tsx               # Root layout, Noto Nastaliq font, Navbar
+        │   ├── page.tsx                 # Landing page (Hero, KnowledgeSection, TrustSection)
+        │   ├── not-found.tsx
+        │   ├── analyze/
+        │   │   ├── page.tsx
+        │   │   └── AnalyzeClient.tsx    # Mode selector + contract type + upload
+        │   ├── debate/
+        │   │   ├── page.tsx
+        │   │   └── DebateClient.tsx     # SSE consumer, three-column live stream
+        │   ├── verdict/
+        │   │   ├── page.tsx
+        │   │   └── VerdictClient.tsx    # Risk score, red flags, summaries, debate replay
         │   └── features/
+        │       └── page.tsx
+        │
         ├── components/
-        │   ├── arbitrix/           # Domain-specific components
-        │   └── ui/                 # shadcn/ui primitives
+        │   ├── NavLink.tsx
+        │   ├── Providers.tsx            # React Query + theme providers
+        │   ├── arbitrix/                # Domain-specific components
+        │   │   ├── Navbar.tsx           # Language toggle (EN / اردو)
+        │   │   ├── Hero.tsx
+        │   │   ├── HowItWorks.tsx
+        │   │   ├── KnowledgeSection.tsx
+        │   │   ├── TrustSection.tsx
+        │   │   ├── ContractTypeSelector.tsx
+        │   │   ├── UploadZone.tsx       # Drag-drop upload, calls POST /upload
+        │   │   ├── LiveDebate.tsx       # Animated debate replay with real findings
+        │   │   ├── Verdict.tsx
+        │   │   └── DisclaimerStrip.tsx
+        │   └── ui/                      # shadcn/ui primitives (40+ components)
+        │       ├── button.tsx
+        │       ├── card.tsx
+        │       ├── dialog.tsx
+        │       ├── sheet.tsx
+        │       ├── toast.tsx
+        │       └── ...
+        │
         ├── contexts/
-        │   └── AppContext.tsx      # Global state + sessionStorage bilingual cache
+        │   └── AppContext.tsx           # Global state + sessionStorage bilingual cache
+        │
+        ├── hooks/
+        │   ├── use-mobile.tsx
+        │   └── use-toast.ts
+        │
         └── lib/
-            └── i18n.ts             # EN / UR translation strings
+            ├── i18n.ts                  # EN / UR translation strings
+            └── utils.ts                 # Tailwind class merge helper
 ```
 
 ---
