@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import random
 from typing import AsyncGenerator
 
 from google import genai
@@ -130,9 +129,9 @@ async def _call_gemini_with_retry(
     system_prompt: str,
     contract_text: str,
     max_tokens: int = 2000,
-    max_retries: int = 3,
+    max_retries: int = 2,
 ) -> list[str]:
-    for attempt in range(max_retries):
+    for attempt in range(max_retries + 1):
         try:
             client = _make_gemini()
             loop = asyncio.get_event_loop()
@@ -164,13 +163,9 @@ async def _call_gemini_with_retry(
             err_str = str(exc)
             is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
             is_permanent = "403" in err_str or "PERMISSION_DENIED" in err_str or "API_KEY_INVALID" in err_str
-            if is_rate_limit and not is_permanent and attempt < max_retries - 1:
-                # Parse retryDelay from the error if present, otherwise use exponential backoff
-                import re
-                delay_match = re.search(r"retryDelay.*?(\d+)s", str(exc))
-                wait = int(delay_match.group(1)) + 2 if delay_match else (2 ** attempt) * 15 + random.uniform(0, 3)
-                logger.warning("Rate limit (attempt %d/%d) — waiting %.0fs", attempt + 1, max_retries, wait)
-                await asyncio.sleep(wait)
+            if is_rate_limit and not is_permanent and attempt < max_retries:
+                logger.warning("Rate limit (attempt %d/%d) — waiting 5s", attempt + 1, max_retries)
+                await asyncio.sleep(5)
             else:
                 raise
 
@@ -289,12 +284,11 @@ async def analyze_contract_stream(
 
     agent_buffers: dict[str, str] = {name: "" for name, _ in agents}
 
-    # Stagger by 1s to spread rate-limit pressure
-    tasks = []
-    for i, (name, prompt) in enumerate(agents):
-        if i > 0:
-            await asyncio.sleep(1)
-        tasks.append(asyncio.create_task(_stream_agent(name, prompt, contract_text, queue)))
+    # Fire all three simultaneously — no stagger
+    tasks = [
+        asyncio.create_task(_stream_agent(name, prompt, contract_text, queue))
+        for name, prompt in agents
+    ]
 
     done_count = 0
     while done_count < len(agents):
@@ -317,14 +311,18 @@ async def analyze_contract_stream(
         logger.info("Synthesis done. risk_score=%s flags=%d",
                     verdict_en.get("risk_score"), len(verdict_en.get("red_flags", [])))
 
-        verdict_ur = await _translate_verdict_to_urdu(verdict_en)
-
+        # Yield English verdict immediately — user navigates to verdict page now
         yield {
             "agent": "synthesis",
             "chunk": "",
             "done": True,
-            "verdict": {"english": verdict_en, "urdu": verdict_ur},
+            "verdict": {"english": verdict_en, "urdu": verdict_en},  # urdu filled in by translation_ready
         }
+
+        # Translate in background — separate event arrives a few seconds later
+        verdict_ur = await _translate_verdict_to_urdu(verdict_en)
+        yield {"type": "translation_ready", "verdict_urdu": verdict_ur}
+
     except Exception as exc:
         yield {"agent": "synthesis", "chunk": "", "done": True, "error": str(exc)}
 

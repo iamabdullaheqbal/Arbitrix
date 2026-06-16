@@ -81,7 +81,10 @@ async def analyze_contract(request: AnalyzeRequest):
     async def event_generator():
         try:
             async for event in analyze_contract_stream(request.contract_text, mode=request.mode, language=request.language):
-                yield {"data": json.dumps(event)}
+                # Compact JSON with no literal newlines — SSE frames on \n so embedded
+                # newlines in string values would split the payload across lines.
+                payload = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+                yield {"data": payload}
         except Exception as exc:
             yield {"data": json.dumps({"error": str(exc)})}
     

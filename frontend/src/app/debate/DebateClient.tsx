@@ -174,11 +174,15 @@ export default function DebateClient() {
         const { done: streamDone, value } = await reader.read();
         if (streamDone) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data:")) continue;
-          const raw = line.slice(5).trim();
+        // SSE events are delimited by \n\n — split on double newline
+        // so a single data: payload containing \n never gets split mid-JSON
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? ""; // last item may be incomplete
+        for (const event of events) {
+          // Each SSE event may have multiple lines; find the data: line
+          const dataLine = event.split("\n").find(l => l.startsWith("data:"));
+          if (!dataLine) continue;
+          const raw = dataLine.slice(5).trim();
           if (!raw) continue;
           try { handleEvent(JSON.parse(raw)); } catch { /* skip malformed */ }
         }
